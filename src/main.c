@@ -1,5 +1,5 @@
+#include "messaging.h"
 #include "networking.h"
-#include "threads.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <getopt.h>
@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #define UNKNOWN_OPTION_MESSAGE_LEN 22
+#define BUFLEN 1024
 
 typedef struct
 {
@@ -24,6 +25,8 @@ void           validate_arguments(const char *binary_name, const Arguments *args
 
 int main(int argc, char *argv[])
 {
+    pid_t pid;
+
     int sockfd;
 
     Arguments args;
@@ -43,10 +46,9 @@ int main(int argc, char *argv[])
     }
 
     // Wait for client connections
-    while(1)
+    pid = 1;
+    while(pid > 0)
     {
-        thread_args targs;
-
         int                connfd;
         struct sockaddr_in connaddr;
         socklen_t          connsize;
@@ -65,14 +67,30 @@ int main(int argc, char *argv[])
 
         printf("New connection from: %s:%d\n", inet_ntoa(connaddr.sin_addr), connaddr.sin_port);
 
-        // Start new thread to handle request
-        memset(&targs, 0, sizeof(thread_args));
-        targs.connfd = connfd;
-
-        if(start_thread(thread_echo, &targs, 0) == -1)    // NOTE: Thread must close file descriptor!!
+        // Fork the process
+        errno = 0;
+        pid   = fork();
+        if(pid < 0)
         {
-            fprintf(stderr, "main::start_thread: Thread function is NULL.\n");
+            perror("main::fork");
+            continue;
         }
+
+        if(pid == 0)
+        {
+            int err;
+
+            close(sockfd);
+
+            err = 0;
+            if(copy(connfd, connfd, BUFLEN, &err) < 0)
+            {
+                errno = err;
+                perror("main::copy");
+            }
+        }
+
+        close(connfd);
     }
 
     return EXIT_SUCCESS;
