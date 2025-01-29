@@ -1,8 +1,12 @@
 #include "networking.h"
+#include "threads.h"
+#include <arpa/inet.h>
 #include <getopt.h>
 #include <memory.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #define UNKNOWN_OPTION_MESSAGE_LEN 22
@@ -19,6 +23,8 @@ void           validate_arguments(const char *binary_name, const Arguments *args
 
 int main(int argc, char *argv[])
 {
+    int sockfd;
+
     Arguments args;
 
     memset(&args, 0, sizeof(Arguments));
@@ -26,6 +32,46 @@ int main(int argc, char *argv[])
     validate_arguments(argv[0], &args);
 
     printf("Listening on %s:%d\n", args.addr, args.port);
+
+    // Start TCP Server
+    sockfd = tcp_socket(args.addr, args.port);
+    if(sockfd < 0)
+    {
+        fprintf(stderr, "main::tcp_socket: Failed to create TCP socket.\n");
+        return EXIT_FAILURE;
+    }
+
+    // Wait for client connections
+    while(1)
+    {
+        thread_args targs;
+
+        int                connfd;
+        struct sockaddr_in connaddr;
+        socklen_t          connsize;
+
+        // !!BLOCKING!! Get client connection
+        connsize = sizeof(struct sockaddr_in);
+        memset(&connaddr, 0, connsize);
+
+        connfd = accept(sockfd, (struct sockaddr *)&connaddr, &connsize);
+        if(connfd < 0)
+        {
+            fprintf(stderr, "main::accept: Failed to accept client connection.\n");
+            continue;
+        }
+
+        printf("New connection from: %s:%d\n", inet_ntoa(connaddr.sin_addr), connaddr.sin_port);
+
+        // Start new thread to handle request
+        memset(&targs, 0, sizeof(thread_args));
+        targs.connfd = connfd;
+
+        if(start_thread(NULL, &targs, 0) == -1)    // NOTE: Thread must close file descriptor!!
+        {
+            fprintf(stderr, "main::start_thread: Thread function is NULL.\n");
+        }
+    }
 
     return EXIT_SUCCESS;
 }
