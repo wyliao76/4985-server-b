@@ -1,5 +1,5 @@
 #include "threads.h"
-#include "utils.h"
+#include "messaging.h"
 #include <errno.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -39,55 +39,23 @@ int start_thread(void *(*thread_fn)(void *targs), void *targs, size_t opts)
 
 void *thread_echo(void *targs)
 {
+    int err;
+
     const thread_args *args;
     int                connfd;
-
-    uint8_t *buf;
-    ssize_t  nread;
-    ssize_t  nwrote;
 
     args   = (thread_args *)targs;
     connfd = args->connfd;
 
-    errno = 0;
-    buf   = (uint8_t *)malloc(BUFLEN);
-    if(buf == NULL)
+    err = 0;
+    if(copy(connfd, connfd, BUFLEN, &err) < 0)
     {
-        perror("thread_echo::buf::malloc");
+        errno = err;
+        perror("thread_echo::copy");
         goto cleanup;
     }
 
-    do
-    {
-        errno = 0;
-        nread = read(connfd, buf, BUFLEN);
-        if(nread < 0)
-        {
-            perror("thread_echo::read");
-            goto cleanup;
-        }
-
-        nwrote = 0;
-        do
-        {
-            ssize_t twrote;
-            size_t  remaining;
-
-            remaining = (size_t)(nread - nwrote);
-            errno     = 0;
-            twrote    = write(connfd, &buf[nwrote], remaining);
-            if(twrote < 0)
-            {
-                perror("thread_echo::write");
-                goto cleanup;
-            }
-
-            nwrote += twrote;
-        } while(nwrote != nread);
-    } while(nread != 0);
-
 cleanup:
-    nfree((void **)&buf);
     close(connfd);
     return NULL;
 }
