@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
         memset(&targs, 0, sizeof(thread_args));
         targs.connfd = connfd;
 
-        if(start_thread(NULL, &targs, 0) == -1)    // NOTE: Thread must close file descriptor!!
+        if(start_thread(thread_echo, &targs, 0) == -1)    // NOTE: Thread must close file descriptor!!
         {
             fprintf(stderr, "main::start_thread: Thread function is NULL.\n");
         }

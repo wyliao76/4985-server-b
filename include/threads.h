@@ -13,5 +13,6 @@ typedef struct
 } thread_args;
 
 int   start_thread(void *(*thread_fn)(void *targs), void *targs, size_t opts);
+void *thread_echo(void *targs);
 
 #endif
