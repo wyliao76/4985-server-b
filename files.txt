@@ -1,1 +1,1 @@
-main src/main.c src/networking.c include/networking.h src/threads.c include/threads.h pthread
+main src/main.c src/networking.c include/networking.h src/threads.c include/threads.h src/utils.c include/utils.h pthread
