@@ -1,6 +1,7 @@
 #include "networking.h"
 #include "threads.h"
 #include <arpa/inet.h>
+#include <errno.h>
 #include <getopt.h>
 #include <memory.h>
 #include <netinet/in.h>
@@ -54,10 +55,11 @@ int main(int argc, char *argv[])
         connsize = sizeof(struct sockaddr_in);
         memset(&connaddr, 0, connsize);
 
+        errno  = 0;
         connfd = accept(sockfd, (struct sockaddr *)&connaddr, &connsize);
         if(connfd < 0)
         {
-            fprintf(stderr, "main::accept: Failed to accept client connection.\n");
+            perror("main::accept");
             continue;
         }
 
