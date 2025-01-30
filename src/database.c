@@ -4,6 +4,7 @@
 #include <p101_c/p101_stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #pragma GCC diagnostic ignored "-Waggregate-return"
 
