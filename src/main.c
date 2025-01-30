@@ -1,3 +1,4 @@
+#include "../include/database.h"
 #include "messaging.h"
 #include "networking.h"
 #include <arpa/inet.h>
@@ -31,6 +32,9 @@ int main(int argc, char *argv[])
 
     Arguments args;
 
+    ssize_t result;
+    int     err;
+
     memset(&args, 0, sizeof(Arguments));
     get_arguments(&args, argc, argv);
     validate_arguments(argv[0], &args);
@@ -43,6 +47,14 @@ int main(int argc, char *argv[])
     {
         fprintf(stderr, "main::tcp_socket: Failed to create TCP socket.\n");
         return EXIT_FAILURE;
+    }
+
+    result = database_connect(&err);
+    printf("result: %d\n", (int)result);
+
+    if(result == -1)
+    {
+        perror("database error");
     }
 
     // Wait for client connections
@@ -78,8 +90,6 @@ int main(int argc, char *argv[])
 
         if(pid == 0)
         {
-            int err;
-
             close(sockfd);
 
             err = 0;
