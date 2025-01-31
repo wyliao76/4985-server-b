@@ -472,15 +472,10 @@ server
 
 supported_c_compilers.txt
 supported_cxx_compilers.txt
+sanitizers.txt
 
 .flags
 
 CMakeLists.txt
 
 build/
-.cache/
-
-.unique_id
-.clangd
-scaffold.sh
-transfer.sh
