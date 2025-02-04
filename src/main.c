@@ -1,6 +1,7 @@
 #include "args.h"
 #include "messaging.h"
 #include "networking.h"
+#include "database.h"
 #include <errno.h>
 #include <memory.h>
 #include <netinet/in.h>
@@ -81,6 +82,30 @@ int main(int argc, char *argv[])
     }
 
     printf("Server launching... (press Ctrl+C to interrupt)\n");
+    ssize_t     result;
+    int         err;
+    DBO         dbo;
+    const char *key   = "name";
+    const char *value = "Tia";
+    const char *db_name = "mydb";
+    datum       output;
+
+    memset(&output, 0, sizeof(datum));
+    dbo.name = db_name;
+
+    result = database_open(&dbo, &err);
+    printf("result: %d\n", (int)result);
+    if(result == -1)
+    {
+        perror("database error");
+    }
+    database_store(&dbo, key, value, &err);
+
+    database_fetch(&dbo, key, &output, &err);
+
+    printf("ouput: %s\n", (char *)output.dptr);
+
+    dbm_close(dbo.db);
 
     memset(&args, 0, sizeof(Arguments));
     args.addr = INADDRESS;

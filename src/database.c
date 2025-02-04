@@ -1,6 +1,5 @@
 #include "../include/database.h"
 #include <errno.h>
-#include <ndbm.h>
 #include <p101_c/p101_stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -8,77 +7,55 @@
 
 #pragma GCC diagnostic ignored "-Waggregate-return"
 
-ssize_t database_connect(int *err)
+ssize_t database_open(DBO *dbo, int *err)
 {
-    DBM  *db;
-    datum key;
-    datum value;
-    datum result;
-
-    const char *name   = "name";
-    const char *nvalue = "Tia";
-    void       *ptr;
-
-    ptr = malloc(strlen(name) + 1);
-    if(ptr == NULL)
-    {
-        perror("malloc error");
-        *err = errno;
-        return -1;
-    }
-    key.dptr = ptr;
-
-    ptr = malloc(strlen(nvalue) + 1);
-    if(ptr == NULL)
-    {
-        perror("malloc error");
-        *err = errno;
-        free(key.dptr);
-        return -1;
-    }
-    value.dptr = ptr;
-
-    ptr = malloc(strlen(name) + strlen(nvalue) + 1);
-    if(ptr == NULL)
-    {
-        perror("malloc error");
-        *err = errno;
-        free(key.dptr);
-        free(value.dptr);
-        return -1;
-    }
-    result.dptr = ptr;
-
-    db = dbm_open("mydb", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-    if(!db)
+    dbo->db = dbm_open(dbo->name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if(!dbo->db)
     {
         perror("dbm_open failed");
         *err = errno;
-        free(key.dptr);
-        free(value.dptr);
-        free(ptr);
         return -1;
     }
+    // key = dbm_firstkey(db);
+    return 0;
+}
 
-    memcpy(key.dptr, name, strlen(name) + 1);
-    key.dsize = strlen((char *)key.dptr) + 1;
-
-    memcpy(value.dptr, nvalue, strlen(nvalue) + 1);
-    value.dsize = strlen((char *)value.dptr) + 1;
-
-    dbm_store(db, key, value, DBM_REPLACE);
-
-    result = dbm_fetch(db, key);
-    if(result.dptr)
+ssize_t parse_datum(datum *obj, const char *input, size_t size, int *err)
+{
+    obj->dptr = malloc(size * sizeof(char));
+    if(obj->dptr == NULL)
     {
-        printf("Fetched value: %s\n", (char *)result.dptr);
+        perror("malloc error");
+        *err = errno;
+        return -1;
     }
+    memcpy(obj->dptr, input, size);
+    obj->dsize = size;
+    return 0;
+}
 
-    dbm_close(db);
+ssize_t database_store(DBO *dbo, const char *key, const char *value, int *err)
+{
+    ITEM item;
 
-    free(key.dptr);
-    free(value.dptr);
-    free(ptr);
+    memset(&item, 0, sizeof(ITEM));
 
+    parse_datum(&item.key, key, strlen(key) + 1, err);
+    parse_datum(&item.value, value, strlen(value) + 1, err);
+
+    dbm_store(dbo->db, item.key, item.value, DBM_REPLACE);
+    return 0;
+}
+
+ssize_t database_fetch(DBO *dbo, const char *key, datum *output, int *err)
+{
+    parse_datum(output, key, strlen(key) + 1, err);
+
+    *output = dbm_fetch(dbo->db, *output);
+    if(!output->dptr)
+    {
+        return -1;
+    }
+    printf("Fetched value: %s\n", (char *)output->dptr);
     return 0;
 }
