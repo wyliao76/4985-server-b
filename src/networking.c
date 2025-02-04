@@ -1,4 +1,5 @@
 #include "networking.h"
+#include "utils.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <memory.h>
@@ -9,37 +10,65 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-static void setup_addr(struct sockaddr_in *sockaddr, const char *address, in_port_t port);
+static void setup_addr(struct sockaddr_storage *sockaddr, socklen_t *socklen, char *address, in_port_t port);
 
-int tcp_socket(const char *address, in_port_t port)
+int tcp_socket(struct sockaddr_storage *sockaddr, int *err)
 {
-    int ISETOPTION = 1;
-
-    int                sockfd;
-    struct sockaddr_in sockaddr;
+    int sockfd;
 
     // Create TCP Socket
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);    // NOLINT(android-cloexec-socket)
+    errno  = 0;
+    sockfd = socket(sockaddr->ss_family, SOCK_STREAM, 0);    // NOLINT(android-cloexec-socket)
     if(sockfd < 0)
     {
-        fprintf(stderr, "tcp_socket::socket: Invalid socket file descriptor generated.\n");
+        *err = errno;
+        return -1;
+    }
+
+    return sockfd;
+}
+
+int tcp_server(char *address, in_port_t port)
+{
+    int ISETOPTION = 1;
+    int err;
+
+    int                     sockfd;
+    struct sockaddr_storage sockaddr;
+    socklen_t               socklen;
+
+    // Setup socket address
+    socklen = 0;
+    memset(&sockaddr, 0, sizeof(struct sockaddr_storage));
+    setup_addr(&sockaddr, &socklen, address, port);
+
+    // Create tcp socket
+    err    = 0;
+    sockfd = tcp_socket(&sockaddr, &err);
+    if(sockfd < 0)
+    {
+        errno = err;
+        perror("tcp_server::socket");
         sockfd = -1;
         goto exit;
     }
 
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&ISETOPTION, sizeof(ISETOPTION));    // Allows for rebinding to address after non-graceful termination
-
-    // Setup address and port for socket binding
-    memset(&sockaddr, 0, sizeof(struct sockaddr_in));
-    setup_addr(&sockaddr, address, port);
+    // Allows for rebinding to address after non-graceful termination
+    errno = 0;
+    if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&ISETOPTION, sizeof(ISETOPTION)) == -1)
+    {
+        perror("tcp_server::setsockopt");
+        sockfd = -2;
+        goto exit;
+    }
 
     // Bind the socket
     errno = 0;
-    if(bind(sockfd, (struct sockaddr *)&sockaddr, sizeof(sockaddr)) < 0)
+    if(bind(sockfd, (struct sockaddr *)&sockaddr, socklen) < 0)
     {
-        perror("tcp_socket::bind");
+        perror("tcp_server::bind");
         close(sockfd);
-        sockfd = -2;
+        sockfd = -3;
         goto exit;
     }
 
@@ -47,9 +76,9 @@ int tcp_socket(const char *address, in_port_t port)
     errno = 0;
     if(listen(sockfd, SOMAXCONN) < 0)
     {
-        perror("tcp_socket::listen");
+        perror("tcp_server::listen");
         close(sockfd);
-        sockfd = -3;
+        sockfd = -4;
         goto exit;
     }
 
@@ -58,13 +87,30 @@ exit:
 }
 
 /**
- * Sets up an IPv4 address in a socket address struct.
+ * Sets up an IPv4 or IPv6 address in a socket address struct.
  */
-void setup_addr(struct sockaddr_in *sockaddr, const char *address, in_port_t port)
+static void setup_addr(struct sockaddr_storage *sockaddr, socklen_t *socklen, char *address, in_port_t port)
 {
-    sockaddr->sin_addr.s_addr = inet_addr(address);
-    sockaddr->sin_family      = AF_INET;
-    sockaddr->sin_port        = htons(port);
+    if(is_ipv6(address))
+    {
+        struct sockaddr_in6 *addr = (struct sockaddr_in6 *)sockaddr;
+
+        inet_pton(AF_INET6, address, &addr->sin6_addr);
+        addr->sin6_family = AF_INET6;
+        addr->sin6_port   = htons(port);
+
+        *socklen = sizeof(struct sockaddr_in6);
+    }
+    else
+    {
+        struct sockaddr_in *addr = (struct sockaddr_in *)sockaddr;
+
+        addr->sin_addr.s_addr = inet_addr(address);
+        addr->sin_family      = AF_INET;
+        addr->sin_port        = htons(port);
+
+        *socklen = sizeof(struct sockaddr_in);
+    }
 }
 
 in_port_t convert_port(const char *str, int *err)

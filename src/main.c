@@ -42,10 +42,10 @@ int main(int argc, char *argv[])
     printf("Listening on %s:%d\n", args.addr, args.port);
 
     // Start TCP Server
-    sockfd = tcp_socket(args.addr, args.port);
+    sockfd = tcp_server(args.addr, args.port);
     if(sockfd < 0)
     {
-        fprintf(stderr, "main::tcp_socket: Failed to create TCP socket.\n");
+        fprintf(stderr, "main::tcp_server: Failed to create TCP server.\n");
         return EXIT_FAILURE;
     }
 
