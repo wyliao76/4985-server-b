@@ -27,7 +27,7 @@ if [ ! -d "$dest_dir" ]; then
 fi
 
 # List of files and directories to copy (excluding .flags)
-files_to_copy=(".clang-format" ".gitignore" "build.sh" "build-all.sh" "change-compiler.sh" "check-compilers.sh" "check-env.sh" "create-links.sh" "files.txt" "generate-cmakelists.sh" "generate-flags.sh" "move.sh" "README.md" "src" "include")
+files_to_copy=(".clang-format" ".gitignore" "build.sh" "build-all.sh" "change-compiler.sh" "check-compilers.sh" "check-env.sh" "create-links.sh" "files.txt" "generate-cmakelists.sh" "generate-flags.sh" "move.sh" "README.md" "src" "include" "tests")
 
 # Copy files and directories to the destination directory
 for item in "${files_to_copy[@]}"; do
