@@ -479,3 +479,9 @@ sanitizers.txt
 CMakeLists.txt
 
 build/
+.cache/
+
+.unique_id
+.clangd
+scaffold.sh
+transfer.sh
