@@ -100,6 +100,7 @@ generate_cmake_content() {
   echo "set(CMAKE_C_STANDARD 17)" >> "$output_file"
   echo "set(CMAKE_C_STANDARD_REQUIRED ON)" >> "$output_file"
   echo "set(CMAKE_C_EXTENSIONS OFF)" >> "$output_file"
+  echo "set(CMAKE_EXPORT_COMPILE_COMMANDS ON)" >> "$output_file"
   echo "" >> "$output_file"
 
   echo "# Check if the system uses 64-bit libraries" >> "$output_file"
