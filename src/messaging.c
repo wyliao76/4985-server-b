@@ -1,66 +1,125 @@
 #include "messaging.h"
 #include "utils.h"
+#include <arpa/inet.h>
 #include <errno.h>
+#include <memory.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-ssize_t copy(int fd_in, int fd_out, size_t size, int *err)
+#define ERR_READ (-5)
+
+/* TODO: THESE SHOULD NOT BE HERE, ONLY FOR DEMO */
+int deserialize_header(header_t *header, const uint8_t *buf);
+
+int deserialize_header(header_t *header, const uint8_t *buf)
 {
-    uint8_t *buf;
-    ssize_t  retval;
-    ssize_t  nread;
-    ssize_t  nwrote;
+    size_t offset;
 
-    *err  = 0;
-    errno = 0;
-    buf   = (uint8_t *)malloc(size);
+    uint8_t  type;
+    uint8_t  version;
+    uint16_t sender_id;
+    uint16_t payload_len;
 
-    if(buf == NULL)
+    offset = 0;
+
+    type = buf[offset];
+    offset += 1;
+
+    version = buf[offset];
+    offset += 1;
+
+    memcpy(&sender_id, buf + offset, sizeof(uint16_t));
+    sender_id = ntohs(sender_id);
+    offset += sizeof(uint16_t);
+
+    memcpy(&payload_len, buf + offset, sizeof(uint16_t));
+    payload_len = ntohs(payload_len);
+
+    if(header == NULL)
     {
-        *err   = errno;
-        retval = -1;
-        goto done;
+        return -1;
     }
 
-    do
+    memset(header, 0, sizeof(header_t));
+    header->type        = type;
+    header->version     = version;
+    header->sender_id   = sender_id;
+    header->payload_len = payload_len;
+
+    return 0;
+}
+
+/* TODO: THESE SHOULD NOT BE HERE, ONLY FOR DEMO */
+
+ssize_t read_packet(int fd, uint8_t **buf, header_t *header, int *err)
+{
+    size_t header_len = sizeof(header_t);
+
+    uint16_t payload_len;
+    ssize_t  nread;
+
+    *buf = (uint8_t *)calloc(header_len, sizeof(uint8_t));
+    if(*buf == NULL)
     {
-        errno = 0;
-        nread = read(fd_in, buf, size);
+        return -1;
+    }
 
-        if(nread < 0)
+    // Read header_len bytes from fd
+    errno = 0;
+    nread = read(fd, *buf, header_len);
+    if(nread < 0)
+    {
+        *err = errno;
+        perror("read_packet::read");
+        nfree((void **)&header);
+        return -1;
+    }
+
+    // If what was read is lower than expected, the header is incomplete
+    if(nread < (ssize_t)header_len)
+    {
+        fprintf(stderr, "read_packet::nread<header_len: Message read was too short to be a header.\n");
+        nfree((void **)&header);
+        return -2;
+    }
+
+    // Deserialize header to reload payload length
+    if(deserialize_header(header, *buf) < 0)
+    {
+        fprintf(stderr, "read_packet::deserialize_header: Failed to deserialize header.\n");
+        return -3;
+    }
+
+    // Pull the length of the payload
+    payload_len = header->payload_len; /* header->size */
+
+    // Allocate another payload_length bytes to buffer
+    {
+        uint8_t *newbuf;
+
+        newbuf = (uint8_t *)realloc(*buf, header_len + payload_len);
+        if(newbuf == NULL)
         {
-            *err   = errno;
-            retval = -2;
-            goto cleanup;
+            perror("read_packet::realloc");
+            nfree((void **)&header);
+            return -4;
         }
+        *buf = newbuf;
+    }
 
-        nwrote = 0;
+    // Read payload_length into buffer
+    errno = 0;
+    nread = read(fd, *buf + header_len, payload_len);
+    if(nread < 0)
+    {
+        *err = errno;
+        perror("read_packet::read");
+        nfree((void **)&header);
+        return ERR_READ;
+    }
 
-        do
-        {
-            ssize_t twrote;
-            size_t  remaining;
-
-            remaining = (size_t)(nread - nwrote);
-            errno     = 0;
-            twrote    = write(fd_out, &buf[nwrote], remaining);
-
-            if(twrote < 0)
-            {
-                *err   = errno;
-                retval = -3;
-                goto cleanup;
-            }
-
-            nwrote += twrote;
-        } while(nwrote != nread);
-    } while(nread != 0);
-
-    retval = nwrote;
-cleanup:
-    nfree((void **)&buf);
-
-done:
-    return retval;
+    return (ssize_t)header_len + payload_len;
 }
