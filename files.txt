@@ -1,1 +1,1 @@
-main src/main.c src/networking.c include/networking.h src/threads.c include/threads.h src/utils.c include/utils.h src/messaging.c include/messaging.h  src/args.c include/args.h
+main src/main.c src/networking.c include/networking.h src/utils.c include/utils.h src/messaging.c include/messaging.h  src/args.c include/args.h
