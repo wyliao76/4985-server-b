@@ -1,3 +1,5 @@
+// cppcheck-suppress-file unusedStructMember
+
 #ifndef MESSAGING_H
 #define MESSAGING_H
 

@@ -91,6 +91,8 @@ int main(int argc, char *argv[])
 
     printf("Listening on %s:%d\n", args.addr, args.port);
 
+    retval = EXIT_SUCCESS;
+
     // Start TCP Server
     sockfd = tcp_server(&args);
     if(sockfd < 0)
@@ -138,9 +140,9 @@ int main(int argc, char *argv[])
             close(connfd);
             goto exit;
         }
-    }
 
-    retval = EXIT_SUCCESS;
+        close(connfd);
+    }
 
 exit:
     close(sockfd);
