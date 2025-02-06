@@ -14,7 +14,6 @@
 _Pragma("clang diagnostic ignored \"-Wdisabled-macro-expansion\"")
 #endif
 
-#define BUFLEN 1024
 #define INADDRESS "0.0.0.0"
 #define PORT "8081"
 #define SIG_BUF 50
@@ -38,8 +37,32 @@ static void handle_signal(int sig)
     write(STDOUT_FILENO, message, strlen(message));
 }
 
+static int request_handler(int connfd)
+{
+    int retval;
+    int err;
+
+    header_t header;
+    uint8_t *buf;
+
+    err = 0;
+
+    if(read_packet(connfd, &buf, &header, &err) < 0)
+    {
+        errno = err;
+        perror("request_handler::read_fd_until_eof");
+    }
+
+    free(buf);
+
+    retval = EXIT_SUCCESS;
+    return retval;
+}
+
 int main(int argc, char *argv[])
 {
+    int retval;
+
     struct sigaction sa;
     pid_t            pid;
     int              sockfd;
@@ -111,20 +134,15 @@ int main(int argc, char *argv[])
 
         if(pid == 0)
         {
-            err = 0;
-            if(copy(connfd, connfd, BUFLEN, &err) < 0)
-            {
-                errno = err;
-                perror("main::copy");
-            }
+            retval = request_handler(connfd);
             close(connfd);
-        }
-        else
-        {
-            close(connfd);
+            goto exit;
         }
     }
-    close(sockfd);
 
-    return EXIT_SUCCESS;
+    retval = EXIT_SUCCESS;
+
+exit:
+    close(sockfd);
+    return retval;
 }
