@@ -1,9 +1,23 @@
+// cppcheck-suppress-file unusedStructMember
+
 #ifndef MESSAGING_H
 #define MESSAGING_H
 
 #include <stddef.h>
+#include <stdint.h>
 #include <unistd.h>
 
-ssize_t copy(int fd_in, int fd_out, size_t size, int *err);
+/* TODO: THESE SHOULD NOT BE HERE, ONLY FOR DEMO */
+typedef struct
+{
+    uint8_t  type;
+    uint8_t  version;
+    uint16_t sender_id;
+    uint16_t payload_len;
+} header_t;
+
+/* TODO: THESE SHOULD NOT BE HERE, ONLY FOR DEMO */
+
+ssize_t read_packet(int fd, uint8_t **buf, header_t *header, int *err);
 
 #endif
