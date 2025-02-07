@@ -1,7 +1,8 @@
 #include "../include/database.h"
 #include <errno.h>
+#include <fcntl.h>
+#include <p101_c/p101_stdio.h>
 #include <p101_c/p101_stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 
@@ -16,46 +17,79 @@ ssize_t database_open(DBO *dbo, int *err)
         *err = errno;
         return -1;
     }
-    // key = dbm_firstkey(db);
     return 0;
 }
 
-ssize_t parse_datum(datum *obj, const char *input, size_t size, int *err)
+int store_string(DBM *db, const char *key, const char *value)
 {
-    obj->dptr = malloc(size * sizeof(char));
-    if(obj->dptr == NULL)
-    {
-        perror("malloc error");
-        *err = errno;
-        return -1;
-    }
-    memcpy(obj->dptr, input, size);
-    obj->dsize = size;
-    return 0;
+    const_datum key_datum   = MAKE_CONST_DATUM(key);
+    const_datum value_datum = MAKE_CONST_DATUM(value);
+
+    return dbm_store(db, *(datum *)&key_datum, *(datum *)&value_datum, DBM_REPLACE);
 }
 
-ssize_t database_store(DBO *dbo, const char *key, const char *value, int *err)
+int store_int(DBM *db, const char *key, int value)
 {
-    ITEM item;
+    const_datum key_datum = MAKE_CONST_DATUM(key);
+    datum       value_datum;
+    int         result;
 
-    memset(&item, 0, sizeof(ITEM));
+    value_datum.dptr = (char *)malloc(TO_SIZE_T(sizeof(int)));
 
-    parse_datum(&item.key, key, strlen(key) + 1, err);
-    parse_datum(&item.value, value, strlen(value) + 1, err);
-
-    dbm_store(dbo->db, item.key, item.value, DBM_REPLACE);
-    return 0;
-}
-
-ssize_t database_fetch(DBO *dbo, const char *key, datum *output, int *err)
-{
-    parse_datum(output, key, strlen(key) + 1, err);
-
-    *output = dbm_fetch(dbo->db, *output);
-    if(!output->dptr)
+    if(value_datum.dptr == NULL)
     {
         return -1;
     }
-    printf("Fetched value: %s\n", (char *)output->dptr);
+
+    memcpy(value_datum.dptr, &value, sizeof(int));
+    value_datum.dsize = sizeof(int);
+
+    result = dbm_store(db, *(datum *)&key_datum, value_datum, DBM_REPLACE);
+
+    free(value_datum.dptr);
+    return result;
+}
+
+char *retrieve_string(DBM *db, const char *key)
+{
+    const_datum key_datum;
+    datum       result;
+    char       *retrieved_str;
+
+    key_datum = MAKE_CONST_DATUM(key);
+
+    result = dbm_fetch(db, *(datum *)&key_datum);
+
+    if(result.dptr == NULL)
+    {
+        return NULL;
+    }
+
+    retrieved_str = (char *)malloc(TO_SIZE_T(result.dsize));
+
+    if(!retrieved_str)
+    {
+        return NULL;
+    }
+
+    memcpy(retrieved_str, result.dptr, TO_SIZE_T(result.dsize));
+
+    return retrieved_str;
+}
+
+int retrieve_int(DBM *db, const char *key, int *result)
+{
+    datum       fetched;
+    const_datum key_datum = MAKE_CONST_DATUM(key);
+
+    fetched = dbm_fetch(db, *(datum *)&key_datum);
+
+    if(fetched.dptr == NULL || fetched.dsize != sizeof(int))
+    {
+        return -1;
+    }
+
+    memcpy(result, fetched.dptr, sizeof(int));
+
     return 0;
 }
