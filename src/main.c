@@ -72,10 +72,10 @@ int main(int argc, char *argv[])
     ssize_t          result;
     DBO              dbo;
     datum            output;
-    const char      *key     = "name";
-    const char      *value   = "Tia";
-    const char      *db_name = "mydb";
-    const char      *uid     = "uid";
+    const char       key[]     = "name";
+    const char       value[]   = "Tia";
+    char             db_name[] = "mydb";
+    const char       uid[]     = "uid";
     char            *username;
     int              user_id;
 
@@ -93,6 +93,7 @@ int main(int argc, char *argv[])
     printf("Server launching... (press Ctrl+C to interrupt)\n");
 
     memset(&output, 0, sizeof(datum));
+
     dbo.name = db_name;
 
     result = database_open(&dbo, &err);

@@ -24,8 +24,8 @@ typedef struct
 
 typedef struct DBO
 {
-    const char *name;
-    DBM        *db;
+    char *name;
+    DBM  *db;
 } DBO;
 
 ssize_t database_open(DBO *dbo, int *err);
