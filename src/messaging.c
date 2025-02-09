@@ -12,42 +12,34 @@
 #define ERR_READ (-5)
 
 /* TODO: THESE SHOULD NOT BE HERE, ONLY FOR DEMO */
-int deserialize_header(header_t *header, const uint8_t *buf);
-
-int deserialize_header(header_t *header, const uint8_t *buf)
+int deserialize_header(header_t *header, const uint8_t *buf, ssize_t nread)
 {
     size_t offset;
 
-    uint8_t  type;
-    uint8_t  version;
-    uint16_t sender_id;
-    uint16_t payload_len;
-
     offset = 0;
 
-    type = buf[offset];
-    offset += 1;
-
-    version = buf[offset];
-    offset += 1;
-
-    memcpy(&sender_id, buf + offset, sizeof(uint16_t));
-    sender_id = ntohs(sender_id);
-    offset += sizeof(uint16_t);
-
-    memcpy(&payload_len, buf + offset, sizeof(uint16_t));
-    payload_len = ntohs(payload_len);
-
-    if(header == NULL)
+    if(nread < (ssize_t)sizeof(header_t))
     {
         return -1;
     }
 
-    memset(header, 0, sizeof(header_t));
-    header->type        = type;
-    header->version     = version;
-    header->sender_id   = sender_id;
-    header->payload_len = payload_len;
+    memcpy(&header->type, buf + offset, sizeof(header->type));
+    offset += sizeof(header->type);
+
+    memcpy(&header->version, buf + offset, sizeof(header->version));
+    offset += sizeof(header->version);
+
+    memcpy(&header->sender_id, buf + offset, sizeof(header->sender_id));
+    offset += sizeof(header->sender_id);
+    header->sender_id = ntohs(header->sender_id);
+
+    memcpy(&header->payload_len, buf + offset, sizeof(header->payload_len));
+    header->payload_len = ntohs(header->payload_len);
+
+    printf("%d\n", header->type);
+    printf("%d\n", header->version);
+    printf("%d\n", header->sender_id);
+    printf("%d\n", header->payload_len);
 
     return 0;
 }
@@ -78,16 +70,16 @@ ssize_t read_packet(int fd, uint8_t **buf, header_t *header, int *err)
         return -1;
     }
 
-    // If what was read is lower than expected, the header is incomplete
-    if(nread < (ssize_t)header_len)
-    {
-        fprintf(stderr, "read_packet::nread<header_len: Message read was too short to be a header.\n");
-        nfree((void **)&header);
-        return -2;
-    }
+    // // If what was read is lower than expected, the header is incomplete
+    // if(nread < (ssize_t)header_len)
+    // {
+    //     fprintf(stderr, "read_packet::nread<header_len: Message read was too short to be a header.\n");
+    //     nfree((void **)&header);
+    //     return -2;
+    // }
 
     // Deserialize header to reload payload length
-    if(deserialize_header(header, *buf) < 0)
+    if(deserialize_header(header, *buf, nread) < 0)
     {
         fprintf(stderr, "read_packet::deserialize_header: Failed to deserialize header.\n");
         return -3;

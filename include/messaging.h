@@ -18,6 +18,8 @@ typedef struct
 
 /* TODO: THESE SHOULD NOT BE HERE, ONLY FOR DEMO */
 
+int deserialize_header(header_t *header, const uint8_t *buf, ssize_t nread);
+
 ssize_t read_packet(int fd, uint8_t **buf, header_t *header, int *err);
 
 #endif

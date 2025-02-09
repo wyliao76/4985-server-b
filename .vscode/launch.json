@@ -9,13 +9,17 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/main",
-            "args": ["-p 3000"],
+            "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "MIMode": "lldb",
-            "preLaunchTask": "Build_GCC"
+            "preLaunchTask": "Build_GCC",
+            "setupCommands": [
+                { "text": "settings set target.process.follow-fork-mode child" }
+                // { "text": "process attach --waitfor main" }
+            ]
         }
     ]
 }
