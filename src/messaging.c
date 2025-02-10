@@ -16,45 +16,86 @@ ssize_t request_handler(int connfd)
     ssize_t retval;
     int     err;
 
-    request_t request;
-    header_t  header;
-    uint8_t  *buf;
+    request_t  request;
+    header_t   req_header;
+    response_t response;
+    header_t   res_header;
+    uint8_t   *buf;
+    code_t     code;
+    size_t     response_len;
+    uint8_t   *res_buf;
 
-    err            = 0;
-    request.header = &header;
+    err                          = 0;
+    code                         = OK;
+    request.header               = &req_header;
+    request.header_len           = sizeof(header_t);
+    response.header              = &res_header;
+    response.header->payload_len = 0;
+    response.code                = &code;
+    response_len                 = 0;
 
     request.body = (body_t *)malloc(sizeof(body_t));
     if(!request.body)
     {
-        perror("Failed to allocate body");
-        return -1;
+        perror("Failed to allocate request body");
+        retval = -1;
+        goto done;
     }
 
-    if(read_packet(connfd, &buf, &request, &err) < 0)
+    response.body = (body_t *)malloc(sizeof(body_t));
+    if(!response.body)
+    {
+        perror("Failed to allocate response body");
+        retval = -1;
+        goto error1;
+    }
+
+    buf = (uint8_t *)calloc(request.header_len, sizeof(uint8_t));
+    if(!buf)
+    {
+        perror("Failed to allocate buf");
+        retval = -1;
+        goto error2;
+    }
+
+    if(read_packet(connfd, &buf, &request, &response, &err) < 0)
     {
         errno = err;
         perror("request_handler::read_fd_until_eof");
+        retval = -1;
+        goto error3;
     }
 
-    free(buf);
-    free(request.body);
+    if(create_response(&request, &response, &res_buf, &response_len, &err) < 0)
+    {
+        errno = err;
+        perror("request_handler::create_response");
+        retval = -1;
+        goto error4;
+    }
+
+    sent_response(connfd, res_buf, &response_len);
 
     retval = EXIT_SUCCESS;
+
+error4:
+    free(res_buf);
+error3:
+    free(buf);
+error2:
+    free(response.body);
+error1:
+    free(request.body);
+done:
     return retval;
 }
 
-ssize_t read_packet(int fd, uint8_t **buf, request_t *request, int *err)
+ssize_t read_packet(int fd, uint8_t **buf, request_t *request, response_t *response, int *err)
 {
-    size_t header_len = sizeof(header_t);
+    size_t header_len = request->header_len;
 
     uint16_t payload_len;
     ssize_t  nread;
-
-    *buf = (uint8_t *)calloc(header_len, sizeof(uint8_t));
-    if(*buf == NULL)
-    {
-        return -1;
-    }
 
     // Read header_len bytes from fd
     errno = 0;
@@ -63,11 +104,12 @@ ssize_t read_packet(int fd, uint8_t **buf, request_t *request, int *err)
     {
         *err = errno;
         perror("read_packet::read");
+        *(response->code) = SERVER_ERROR;
         return -1;
     }
 
     // Deserialize header to reload payload length
-    if(deserialize_header(request->header, *buf, nread) < 0)
+    if(deserialize_header(request->header, response, *buf, nread) < 0)
     {
         // If what was read is lower than expected, the header is incomplete
         fprintf(stderr, "read_packet::nread<header_len: Message read was too short to be a header.\n");
@@ -85,6 +127,7 @@ ssize_t read_packet(int fd, uint8_t **buf, request_t *request, int *err)
         if(newbuf == NULL)
         {
             perror("read_packet::realloc");
+            *(response->code) = SERVER_ERROR;
             return -4;
         }
         *buf = newbuf;
@@ -97,10 +140,11 @@ ssize_t read_packet(int fd, uint8_t **buf, request_t *request, int *err)
     {
         *err = errno;
         perror("read_packet::read");
+        *(response->code) = SERVER_ERROR;
         return ERR_READ;
     }
 
-    if(deserialize_body(request, *buf + header_len, nread, err) < 0)
+    if(deserialize_body(request, response, *buf + header_len, nread, err) < 0)
     {
         // If what was read is lower than expected, the header is incomplete
         fprintf(stderr, "read_packet::body length mismatch\n");
@@ -108,12 +152,9 @@ ssize_t read_packet(int fd, uint8_t **buf, request_t *request, int *err)
     }
 
     return 0;
-
-    // return (ssize_t)header_len + payload_len;
 }
 
-/* TODO: THESE SHOULD NOT BE HERE, ONLY FOR DEMO */
-ssize_t deserialize_header(header_t *header, const uint8_t *buf, ssize_t nread)
+ssize_t deserialize_header(header_t *header, response_t *response, const uint8_t *buf, ssize_t nread)
 {
     size_t offset;
 
@@ -121,6 +162,7 @@ ssize_t deserialize_header(header_t *header, const uint8_t *buf, ssize_t nread)
 
     if(nread < (ssize_t)sizeof(header_t))
     {
+        *(response->code) = INVALID_REQUEST;
         return -1;
     }
 
@@ -145,18 +187,19 @@ ssize_t deserialize_header(header_t *header, const uint8_t *buf, ssize_t nread)
     return 0;
 }
 
-ssize_t deserialize_body(request_t *request, const uint8_t *buf, ssize_t nread, int *err)
+ssize_t deserialize_body(request_t *request, response_t *response, const uint8_t *buf, ssize_t nread, int *err)
 {
     if(nread < (ssize_t)request->header->payload_len)
     {
         printf("body too short\n");
-        *err = EINVAL;
+        *err              = EINVAL;
+        *(response->code) = INVALID_REQUEST;
         return -1;
     }
 
     printf("type: %d\n", (int)request->header->type);
 
-    if(request->header->type == ACC_CREATE || request->header->type == ACC_LOGIN)
+    if(request->header->type == ACC_Create || request->header->type == ACC_Login)
     {
         size_t offset;
         acc_t *acc;
@@ -165,7 +208,8 @@ ssize_t deserialize_body(request_t *request, const uint8_t *buf, ssize_t nread, 
         if(!acc)
         {
             perror("Failed to allocate acc_t");
-            *err = errno;
+            *err              = errno;
+            *(response->code) = SERVER_ERROR;
             return -1;
         }
         memset(acc, 0, sizeof(acc_t));
@@ -189,7 +233,8 @@ ssize_t deserialize_body(request_t *request, const uint8_t *buf, ssize_t nread, 
         {
             perror("Failed to allocate username");
             free(acc);
-            *err = errno;
+            *err              = errno;
+            *(response->code) = SERVER_ERROR;
             return -1;
         }
         memcpy(acc->username, buf + offset, acc->username_len);
@@ -217,7 +262,8 @@ ssize_t deserialize_body(request_t *request, const uint8_t *buf, ssize_t nread, 
             perror("Failed to allocate password");
             free(acc->username);
             free(acc);
-            *err = errno;
+            *err              = errno;
+            *(response->code) = SERVER_ERROR;
             return -1;
         }
         memcpy(acc->password, buf + offset, acc->password_len);
@@ -232,5 +278,88 @@ ssize_t deserialize_body(request_t *request, const uint8_t *buf, ssize_t nread, 
     }
 
     printf("Unknown type: 0x%X\n", request->header->type);
+    *(response->code) = INVALID_REQUEST;
     return -1;
+}
+
+ssize_t serialize_header(const response_t *response, uint8_t *buf)
+{
+    size_t offset;
+
+    offset = 0;
+
+    memcpy(buf + offset, &response->header->type, sizeof(response->header->type));
+    offset += sizeof(response->header->type);
+
+    memcpy(buf + offset, &response->header->version, sizeof(response->header->version));
+    offset += sizeof(response->header->version);
+
+    response->header->sender_id = htons(response->header->sender_id);
+    memcpy(buf + offset, &response->header->sender_id, sizeof(response->header->sender_id));
+    offset += sizeof(response->header->sender_id);
+
+    response->header->payload_len = htons(response->header->payload_len);
+    memcpy(buf + offset, &response->header->payload_len, sizeof(response->header->payload_len));
+
+    return 0;
+}
+
+ssize_t serialize_body(const response_t *response, uint8_t *buf)
+{
+    printf("yo: %d\n", (int)htons(response->header->payload_len));
+    memcpy(buf, response->body->msg, htons(response->header->payload_len));
+
+    return 0;
+}
+
+ssize_t create_response(const request_t *request, response_t *response, uint8_t **buf, size_t *response_len, int *err)
+{
+    const u_int8_t msg[3] = {
+        0x02,
+        0x01,
+        0x01,
+    };
+
+    response->header->type        = ACC_Login_Success;
+    response->header->version     = 1;
+    response->header->sender_id   = 0;
+    response->header->payload_len = 3;
+
+    *response_len = (size_t)(request->header_len + response->header->payload_len);
+    printf("response_len: %d\n", (int)*response_len);
+
+    *buf = (uint8_t *)malloc(*response_len);
+    if(*buf == NULL)
+    {
+        perror("read_packet::realloc");
+        *(response->code) = SERVER_ERROR;
+        *err              = errno;
+        return -1;
+    }
+
+    response->body->msg = (uint8_t *)malloc(response->header->payload_len);
+    if(!response->body->msg)
+    {
+        perror("Failed to allocate memory for msg");
+        *err = errno;
+        return -1;
+    }
+
+    memcpy(response->body->msg, msg, response->header->payload_len);
+
+    serialize_header(response, *buf);
+    serialize_body(response, *buf + sizeof(header_t));
+
+    free(response->body->msg);
+
+    return 0;
+}
+
+ssize_t sent_response(int fd, const uint8_t *buf, const size_t *response_len)
+{
+    ssize_t result;
+
+    result = write(fd, buf, *response_len);
+    printf("\n%d\n", (int)result);
+    return 0;
 }

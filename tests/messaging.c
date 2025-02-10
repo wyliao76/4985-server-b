@@ -14,7 +14,7 @@ AfterEach(serializer)
 
 Ensure(serializer, return_strcut)
 {
-    unsigned char buf[8] = {
+    unsigned char buf[6] = {
         0x0A,    // 10
         0x01,    // 1
         0x00,    // 0
@@ -23,8 +23,9 @@ Ensure(serializer, return_strcut)
         0x16,    // 22
     };
     header_t header;
+    response_t response;
 
-    deserialize_header(&header, buf, sizeof(buf));
+    deserialize_header(&header, &response, buf, sizeof(buf));
 
     assert_that(header.type, is_equal_to(10));
     assert_that(header.version, is_equal_to(1));
@@ -36,8 +37,9 @@ Ensure(serializer, fail_no_header)
 {
     unsigned char     buf[0] = {};
     header_t header;
+    response_t response;
 
-    assert_that(deserialize_header(&header, buf, sizeof(buf)), is_equal_to(-1));
+    assert_that(deserialize_header(&header, &response, buf, sizeof(buf)), is_equal_to(-1));
 }
 
 TestSuite *tests()
