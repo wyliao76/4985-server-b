@@ -37,28 +37,6 @@ static void handle_signal(int sig)
     write(STDOUT_FILENO, message, strlen(message));
 }
 
-static int request_handler(int connfd)
-{
-    int retval;
-    int err;
-
-    header_t header;
-    uint8_t *buf;
-
-    err = 0;
-
-    if(read_packet(connfd, &buf, &header, &err) < 0)
-    {
-        errno = err;
-        perror("request_handler::read_fd_until_eof");
-    }
-
-    free(buf);
-
-    retval = EXIT_SUCCESS;
-    return retval;
-}
-
 int main(int argc, char *argv[])
 {
     int retval;
@@ -136,7 +114,7 @@ int main(int argc, char *argv[])
 
         if(pid == 0)
         {
-            retval = request_handler(connfd);
+            retval = (int)request_handler(connfd);
             close(connfd);
             goto exit;
         }
