@@ -6,7 +6,8 @@
 
 ssize_t packet_handler(const request_t *request, response_t *response)
 {
-    ssize_t result;
+    ssize_t      result;
+    const acc_t *acc = (acc_t *)request->body;
 
     result = -1;
     printf("packet_handler: header->type: %d\n", (int)request->header->type);
@@ -15,6 +16,9 @@ ssize_t packet_handler(const request_t *request, response_t *response)
     {
         result = account_login(request, response);
     }
+
+    free(acc->username);
+    free(acc->password);
 
     return result;
 }
@@ -37,6 +41,7 @@ static ssize_t auth(body_t *body, res_body_t *res_body)
         res_body->value = INVALID_AUTH;
         return -1;
     }
+
     res_body->tag = INTEGER;
     res_body->len = 0x01;
     // user Id

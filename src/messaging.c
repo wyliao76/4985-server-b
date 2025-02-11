@@ -355,8 +355,7 @@ ssize_t serialize_body(const response_t *response, uint8_t *buf)
         // printf("offset: %d\n", (int)offset);
         // printf("yo2: %d\n", (int)(response->body->msg_len));
 
-        // memcpy(buf + offset, response->body->msg, response->body->msg_len);
-        memcpy(buf + offset, response->body->msg, response->header->payload_len - offset);
+        memcpy(buf + offset, code_to_string(response->code), response->header->payload_len - offset);
     }
 
     return 0;
@@ -389,16 +388,6 @@ ssize_t create_response(const request_t *request, response_t *response, uint8_t 
     response->body->msg_len = (uint8_t)(strlen(msg));
     printf("msg_len: %d\n", (int)response->body->msg_len);
     // msg
-
-    response->body->msg = (uint8_t *)malloc(strlen(msg));
-    if(!response->body->msg)
-    {
-        perror("read_packet::realloc");
-        *(response->code) = SERVER_ERROR;
-        *err              = errno;
-        return -1;
-    }
-    memcpy(response->body->msg, msg, strlen(msg));
 
     *response_len = *response_len + response->body->msg_len + 2;
     printf("response_len final: %d\n", (int)*response_len);
