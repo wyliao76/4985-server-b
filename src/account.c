@@ -31,6 +31,10 @@ static ssize_t auth(body_t *body, res_body_t *res_body)
 
     if(strcmp(username, (char *)acc->username) != 0 || strcmp(password, (char *)acc->password) != 0)
     {
+        res_body->tag = INTEGER;
+        res_body->len = 0x01;
+        // user Id
+        res_body->value = INVALID_AUTH;
         return -1;
     }
     res_body->tag = INTEGER;

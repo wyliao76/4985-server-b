@@ -11,6 +11,13 @@
 
 typedef enum
 {
+    ONE   = 0x01,
+    TWO   = 0x02,
+    THREE = 0x03,
+} version_t;
+
+typedef enum
+{
     BOOLEAN         = 0x01,
     INTEGER         = 0x02,
     null            = 0x05,
@@ -72,9 +79,12 @@ typedef struct body_t
 
 typedef struct res_body_t
 {
-    uint8_t tag;
-    uint8_t len;
-    uint8_t value;
+    uint8_t  tag;
+    uint8_t  len;
+    uint8_t  value;
+    uint8_t  msg_tag;
+    uint8_t  msg_len;
+    uint8_t *msg;
 } res_body_t;
 
 typedef struct acc_t
