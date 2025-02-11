@@ -3,12 +3,12 @@
 
 #include "messaging.h"
 
-ssize_t packet_handler(const request_t *request, response_t *response);
+ssize_t packet_handler(const request_t *request, response_t *response, int *err);
 
-ssize_t account_create(request_t *request, response_t *response);
+ssize_t account_create(const request_t *request, response_t *response, int *err);
 
-ssize_t account_login(const request_t *request, response_t *response);
+ssize_t account_login(const request_t *request, response_t *response, int *err);
 
-ssize_t account_logout(request_t *request, response_t *response);
+ssize_t account_logout(void);
 
 #endif    // ACCOUNT_H

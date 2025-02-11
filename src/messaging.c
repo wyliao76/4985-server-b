@@ -13,8 +13,13 @@
 #define ERR_READ (-5)
 
 static const codeMapping code_map[] = {
-    {OK,           ""                                  },
-    {INVALID_AUTH, "Invalid Authentication Information"},
+    {OK,              ""                                  },
+    {INVALID_USER_ID, "Invalid User ID"                   },
+    {INVALID_AUTH,    "Invalid Authentication Information"},
+    {USER_EXISTS,     "User Already exist"                },
+    {SERVER_ERROR,    "Server Error"                      },
+    {INVALID_REQUEST, "Invalid Request"                   },
+    {REQUEST_TIMEOUT, "Request Timeout"                   }
 };
 
 static const char *code_to_string(const code_t *code)
@@ -84,7 +89,7 @@ ssize_t request_handler(int connfd)
         goto error3;
     }
 
-    packet_handler(&request, &response);
+    packet_handler(&request, &response, &err);
 
     // errno = 0;
     if(create_response(&request, &response, &res_buf, &response_len, &err) < 0)
@@ -139,6 +144,11 @@ ssize_t read_packet(int fd, uint8_t **buf, request_t *request, response_t *respo
 
     // Pull the length of the payload
     payload_len = request->header->payload_len; /* header->size */
+
+    if(!payload_len)
+    {
+        return 0;
+    }
 
     // Allocate another payload_length bytes to buffer
     {
@@ -341,7 +351,6 @@ ssize_t serialize_body(const response_t *response, uint8_t *buf)
     offset += sizeof(response->body->value);
 
     printf("%d\n", (int)offset);
-    // printf("%d\n", (int)response->header->payload_len);
     response->header->payload_len = htons(response->header->payload_len);
     printf("%d\n", (int)response->header->payload_len);
 
@@ -352,8 +361,6 @@ ssize_t serialize_body(const response_t *response, uint8_t *buf)
 
         memcpy(buf + offset, &response->body->msg_len, sizeof(response->body->msg_len));
         offset += sizeof(response->body->msg_len);
-        // printf("offset: %d\n", (int)offset);
-        // printf("yo2: %d\n", (int)(response->body->msg_len));
 
         memcpy(buf + offset, code_to_string(response->code), response->header->payload_len - offset);
     }
@@ -397,13 +404,19 @@ ssize_t create_response(const request_t *request, response_t *response, uint8_t 
         response->header->type      = ACC_Login_Success;
         response->header->version   = ONE;
         response->header->sender_id = 0x00;
-        // ok has no msg
-        response->header->payload_len = (uint16_t)3;
-        // no msg tag & msg len
-        *response_len -= 2;
-
-        serialize_header(response, *buf);
-        serialize_body(response, *buf + sizeof(header_t));
+        // logout has no response body
+        if(request->header->type == ACC_Logout)
+        {
+            response->header->payload_len = 0;
+            *response_len                 = *response_len - 2 - 3;
+        }
+        else
+        {
+            // ok has no msg
+            response->header->payload_len = (uint16_t)3;
+            // no msg tag & msg len
+            *response_len -= 2;
+        }
     }
     else if(*response->code == INVALID_AUTH)
     {
@@ -422,10 +435,27 @@ ssize_t create_response(const request_t *request, response_t *response, uint8_t 
             return -4;
         }
         *buf = newbuf;
-        serialize_header(response, *buf);
-        serialize_body(response, *buf + sizeof(header_t));
+    }
+    else
+    {
+        printf("*response->code == else \n");
+        response->header->type        = SYS_Error;
+        response->header->version     = ONE;
+        response->header->sender_id   = 0x00;
+        response->header->payload_len = (uint16_t)(3 + response->body->msg_len + 2);
+
+        newbuf = (uint8_t *)realloc(*buf, *response_len);
+        if(newbuf == NULL)
+        {
+            perror("read_packet::realloc");
+            *(response->code) = SERVER_ERROR;
+            return -4;
+        }
+        *buf = newbuf;
     }
 
+    serialize_header(response, *buf);
+    serialize_body(response, *buf + sizeof(header_t));
     return 0;
 }
 
