@@ -1,4 +1,5 @@
 #include "messaging.h"
+#include "account.h"
 #include "utils.h"
 #include <arpa/inet.h>
 #include <errno.h>
@@ -10,6 +11,23 @@
 #include <unistd.h>
 
 #define ERR_READ (-5)
+
+// static const codeMapping code_map[] = {
+//     {OK,           "OK"                                },
+//     {INVALID_AUTH, "Invalid Authentication Information"},
+// };
+
+// static const char *code_to_string(code_t code)
+// {
+//     for(size_t i = 0; i < sizeof(code_map) / sizeof(code_map[0]); i++)
+//     {
+//         if(code_map[i].code == code)
+//         {
+//             return code_map[i].msg;
+//         }
+//     }
+//     return "UNKNOWN_STATUS";
+// }
 
 ssize_t request_handler(int connfd)
 {
@@ -32,7 +50,7 @@ ssize_t request_handler(int connfd)
     response.header              = &res_header;
     response.header->payload_len = 0;
     response.code                = &code;
-    response_len                 = 0;
+    response_len                 = 3;
 
     request.body = (body_t *)malloc(sizeof(body_t));
     if(!request.body)
@@ -42,7 +60,7 @@ ssize_t request_handler(int connfd)
         goto done;
     }
 
-    response.body = (body_t *)malloc(sizeof(body_t));
+    response.body = (res_body_t *)malloc(sizeof(res_body_t));
     if(!response.body)
     {
         perror("Failed to allocate response body");
@@ -66,10 +84,13 @@ ssize_t request_handler(int connfd)
         goto error3;
     }
 
+    packet_handler(&request, &response);
+
+    // errno = 0;
     if(create_response(&request, &response, &res_buf, &response_len, &err) < 0)
     {
         errno = err;
-        perror("request_handler::create_response");
+        perror("request_handler::packet_handler");
         retval = -1;
         goto error4;
     }
@@ -219,13 +240,13 @@ ssize_t deserialize_body(request_t *request, response_t *response, const uint8_t
         memcpy(&acc->username_tag, buf + offset, sizeof(acc->username_tag));
         offset += sizeof(acc->username_tag);
 
-        printf("tag: %d\n", (int)acc->username_tag);
+        // printf("tag: %d\n", (int)acc->username_tag);
 
         // Deserialize username length
         memcpy(&acc->username_len, buf + offset, sizeof(acc->username_len));
         offset += sizeof(acc->username_len);
 
-        printf("len: %d\n", (int)acc->username_len);
+        // printf("len: %d\n", (int)acc->username_len);
 
         // Deserialize username
         acc->username = (uint8_t *)malloc((size_t)acc->username_len + 1);
@@ -241,19 +262,19 @@ ssize_t deserialize_body(request_t *request, response_t *response, const uint8_t
         acc->username[acc->username_len] = '\0';
         offset += acc->username_len;
 
-        printf("username: %s\n", acc->username);
+        // printf("username: %s\n", acc->username);
 
         // Deserialize username tag
         memcpy(&acc->password_tag, buf + offset, sizeof(acc->password_tag));
         offset += sizeof(acc->password_tag);
 
-        printf("password_tag: %d\n", (int)acc->password_tag);
+        // printf("password_tag: %d\n", (int)acc->password_tag);
 
         // Deserialize password length
         memcpy(&acc->password_len, buf + offset, sizeof(acc->password_len));
         offset += sizeof(acc->password_len);
 
-        printf("password_len: %d\n", (int)acc->password_len);
+        // printf("password_len: %d\n", (int)acc->password_len);
 
         // Deserialize password
         acc->password = (uint8_t *)malloc((size_t)acc->password_len + 1);
@@ -272,7 +293,7 @@ ssize_t deserialize_body(request_t *request, response_t *response, const uint8_t
         free(request->body);
         request->body = (body_t *)acc;
 
-        printf("password: %s\n", acc->password);
+        // printf("password: %s\n", acc->password);
 
         return 0;
     }
@@ -306,27 +327,33 @@ ssize_t serialize_header(const response_t *response, uint8_t *buf)
 
 ssize_t serialize_body(const response_t *response, uint8_t *buf)
 {
-    printf("yo: %d\n", (int)htons(response->header->payload_len));
-    memcpy(buf, response->body->msg, htons(response->header->payload_len));
+    size_t offset;
+
+    offset = 0;
+
+    memcpy(buf + offset, &response->body->tag, sizeof(response->body->tag));
+    offset += sizeof(response->body->tag);
+
+    memcpy(buf + offset, &response->body->len, sizeof(response->body->len));
+    offset += sizeof(response->body->len);
+
+    memcpy(buf + offset, &response->body->value, sizeof(response->body->value));
+
+    // printf("yo: %d\n", (int)htons(response->header->payload_len));
+    // memcpy(buf, response->body->msg, htons(response->header->payload_len));
 
     return 0;
 }
 
 ssize_t create_response(const request_t *request, response_t *response, uint8_t **buf, size_t *response_len, int *err)
 {
-    const u_int8_t msg[3] = {
-        0x02,
-        0x01,
-        0x01,
-    };
-
-    response->header->type        = ACC_Login_Success;
-    response->header->version     = 1;
-    response->header->sender_id   = 0;
-    response->header->payload_len = 3;
-
-    *response_len = (size_t)(request->header_len + response->header->payload_len);
-    printf("response_len: %d\n", (int)*response_len);
+    // response->body->msg = (uint8_t *)malloc();
+    // if(!response->body->msg)
+    // {
+    //     perror("Failed to allocate memory for msg");
+    //     *err = errno;
+    //     return -1;
+    // }
 
     *buf = (uint8_t *)malloc(*response_len);
     if(*buf == NULL)
@@ -337,20 +364,41 @@ ssize_t create_response(const request_t *request, response_t *response, uint8_t 
         return -1;
     }
 
-    response->body->msg = (uint8_t *)malloc(response->header->payload_len);
-    if(!response->body->msg)
+    if(*response->code == OK)
     {
-        perror("Failed to allocate memory for msg");
-        *err = errno;
-        return -1;
+        response->header->type        = ACC_Login_Success;
+        response->header->version     = 1;
+        response->header->sender_id   = 0;
+        response->header->payload_len = 3;
+
+        *response_len = (size_t)(request->header_len + response->header->payload_len);
+        printf("response_len: %d\n", (int)*response_len);
+
+        {
+            uint8_t *newbuf;
+
+            newbuf = (uint8_t *)realloc(*buf, *response_len);
+            if(newbuf == NULL)
+            {
+                perror("read_packet::realloc");
+                *(response->code) = SERVER_ERROR;
+                return -4;
+            }
+            *buf = newbuf;
+        }
+
+        // memcpy(response->body->msg, msg, response->header->payload_len);
+
+        serialize_header(response, *buf);
+        serialize_body(response, *buf + sizeof(header_t));
+
+        // free(response->body->msg);
     }
-
-    memcpy(response->body->msg, msg, response->header->payload_len);
-
-    serialize_header(response, *buf);
-    serialize_body(response, *buf + sizeof(header_t));
-
-    free(response->body->msg);
+    else if(*response->code == INVALID_AUTH)
+    {
+        printf("*response->code == INVALID_AUTH\n");
+        // code_to_string(response->code);
+    }
 
     return 0;
 }

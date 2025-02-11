@@ -70,6 +70,13 @@ typedef struct body_t
     uint8_t *msg;
 } body_t;
 
+typedef struct res_body_t
+{
+    uint8_t tag;
+    uint8_t len;
+    uint8_t value;
+} res_body_t;
+
 typedef struct acc_t
 {
     uint8_t  username_tag;
@@ -89,10 +96,16 @@ typedef struct request_t
 
 typedef struct response_t
 {
-    header_t *header;
-    code_t   *code;
-    body_t   *body;
+    header_t   *header;
+    code_t     *code;
+    res_body_t *body;
 } response_t;
+
+typedef struct
+{
+    code_t      code;
+    const char *msg;
+} codeMapping;
 
 /* TODO: THESE SHOULD NOT BE HERE, ONLY FOR DEMO */
 
