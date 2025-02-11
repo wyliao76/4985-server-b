@@ -1,4 +1,5 @@
 #include "args.h"
+#include "database.h"
 #include "messaging.h"
 #include "networking.h"
 #include <errno.h>
@@ -46,6 +47,15 @@ int main(int argc, char *argv[])
     int              sockfd;
     Arguments        args;
     int              err;
+    ssize_t          result;
+    DBO              dbo;
+    datum            output;
+    const char       key[]     = "name";
+    const char       value[]   = "Tia";
+    char             db_name[] = "mydb";
+    const char       uid[]     = "uid";
+    char            *username;
+    int              user_id;
 
     sa.sa_handler = handle_signal;    // Set handler function for SIGINT
     sigemptyset(&sa.sa_mask);         // Don't block any additional signals
@@ -59,6 +69,58 @@ int main(int argc, char *argv[])
     }
 
     printf("Server launching... (press Ctrl+C to interrupt)\n");
+
+    memset(&output, 0, sizeof(datum));
+
+    dbo.name = db_name;
+
+    result = database_open(&dbo, &err);
+    printf("result: %d\n", (int)result);
+    if(result == -1)
+    {
+        perror("database error");
+    }
+
+    // Store a string
+    if(store_string(dbo.db, key, value) != 0)
+    {
+        perror("store_string");
+        dbm_close(dbo.db);
+        return EXIT_FAILURE;
+    }
+
+    // Store an integer
+    if(store_int(dbo.db, uid, 1) != 0)
+    {
+        perror("store_int");
+        dbm_close(dbo.db);
+        return EXIT_FAILURE;
+    }
+
+    // Retrieve a string
+    username = retrieve_string(dbo.db, key);
+
+    if(username)
+    {
+        printf("Retrieved username: %s\n", username);
+        free(username);
+    }
+    else
+    {
+        printf("Username not found\n");
+    }
+
+    // Retrieve an integer
+    if(retrieve_int(dbo.db, uid, &user_id) == 0)
+    {
+        printf("Retrieved user ID: %d\n", user_id);
+    }
+    else
+    {
+        printf("User ID not found\n");
+    }
+
+    dbm_close(dbo.db);
 
     memset(&args, 0, sizeof(Arguments));
     args.addr = INADDRESS;

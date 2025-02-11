@@ -1,84 +1,95 @@
 #include "../include/database.h"
 #include <errno.h>
-#include <ndbm.h>
+#include <fcntl.h>
+#include <p101_c/p101_stdio.h>
 #include <p101_c/p101_stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 
 #pragma GCC diagnostic ignored "-Waggregate-return"
 
-ssize_t database_connect(int *err)
+ssize_t database_open(DBO *dbo, int *err)
 {
-    DBM  *db;
-    datum key;
-    datum value;
-    datum result;
-
-    const char *name   = "name";
-    const char *nvalue = "Tia";
-    void       *ptr;
-
-    ptr = malloc(strlen(name) + 1);
-    if(ptr == NULL)
-    {
-        perror("malloc error");
-        *err = errno;
-        return -1;
-    }
-    key.dptr = ptr;
-
-    ptr = malloc(strlen(nvalue) + 1);
-    if(ptr == NULL)
-    {
-        perror("malloc error");
-        *err = errno;
-        free(key.dptr);
-        return -1;
-    }
-    value.dptr = ptr;
-
-    ptr = malloc(strlen(name) + strlen(nvalue) + 1);
-    if(ptr == NULL)
-    {
-        perror("malloc error");
-        *err = errno;
-        free(key.dptr);
-        free(value.dptr);
-        return -1;
-    }
-    result.dptr = ptr;
-
-    db = dbm_open("mydb", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-    if(!db)
+    dbo->db = dbm_open(dbo->name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if(!dbo->db)
     {
         perror("dbm_open failed");
         *err = errno;
-        free(key.dptr);
-        free(value.dptr);
-        free(ptr);
+        return -1;
+    }
+    return 0;
+}
+
+int store_string(DBM *db, const char *key, const char *value)
+{
+    const_datum key_datum   = MAKE_CONST_DATUM(key);
+    const_datum value_datum = MAKE_CONST_DATUM(value);
+
+    return dbm_store(db, *(datum *)&key_datum, *(datum *)&value_datum, DBM_REPLACE);
+}
+
+int store_int(DBM *db, const char *key, int value)
+{
+    const_datum key_datum = MAKE_CONST_DATUM(key);
+    datum       value_datum;
+    int         result;
+
+    value_datum.dptr = (char *)malloc(TO_SIZE_T(sizeof(int)));
+
+    if(value_datum.dptr == NULL)
+    {
         return -1;
     }
 
-    memcpy(key.dptr, name, strlen(name) + 1);
-    key.dsize = strlen((char *)key.dptr) + 1;
+    memcpy(value_datum.dptr, &value, sizeof(int));
+    value_datum.dsize = sizeof(int);
 
-    memcpy(value.dptr, nvalue, strlen(nvalue) + 1);
-    value.dsize = strlen((char *)value.dptr) + 1;
+    result = dbm_store(db, *(datum *)&key_datum, value_datum, DBM_REPLACE);
 
-    dbm_store(db, key, value, DBM_REPLACE);
+    free(value_datum.dptr);
+    return result;
+}
 
-    result = dbm_fetch(db, key);
-    if(result.dptr)
+char *retrieve_string(DBM *db, const char *key)
+{
+    const_datum key_datum;
+    datum       result;
+    char       *retrieved_str;
+
+    key_datum = MAKE_CONST_DATUM(key);
+
+    result = dbm_fetch(db, *(datum *)&key_datum);
+
+    if(result.dptr == NULL)
     {
-        printf("Fetched value: %s\n", (char *)result.dptr);
+        return NULL;
     }
 
-    dbm_close(db);
+    retrieved_str = (char *)malloc(TO_SIZE_T(result.dsize));
 
-    free(key.dptr);
-    free(value.dptr);
-    free(ptr);
+    if(!retrieved_str)
+    {
+        return NULL;
+    }
+
+    memcpy(retrieved_str, result.dptr, TO_SIZE_T(result.dsize));
+
+    return retrieved_str;
+}
+
+int retrieve_int(DBM *db, const char *key, int *result)
+{
+    datum       fetched;
+    const_datum key_datum = MAKE_CONST_DATUM(key);
+
+    fetched = dbm_fetch(db, *(datum *)&key_datum);
+
+    if(fetched.dptr == NULL || fetched.dsize != sizeof(int))
+    {
+        return -1;
+    }
+
+    memcpy(result, fetched.dptr, sizeof(int));
 
     return 0;
 }
