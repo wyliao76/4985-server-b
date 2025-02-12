@@ -6,6 +6,7 @@
 
 int       tcp_socket(struct sockaddr_storage *sockaddr, int *err);
 int       tcp_server(const Arguments *args);
+int       tcp_client(const Arguments *args);
 in_port_t convert_port(const char *str, int *err);
 
 #endif

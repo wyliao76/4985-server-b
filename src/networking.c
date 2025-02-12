@@ -86,6 +86,53 @@ exit:
     return sockfd;
 }
 
+int tcp_client(const Arguments *args)
+{
+    int ISETOPTION = 1;
+    int err;
+
+    int                     sockfd;
+    struct sockaddr_storage sockaddr;
+    socklen_t               socklen;
+
+    // Setup socket address
+    socklen = 0;
+    memset(&sockaddr, 0, sizeof(struct sockaddr_storage));
+    setup_addr(&sockaddr, &socklen, args);
+
+    // Create tcp socket
+    err    = 0;
+    sockfd = tcp_socket(&sockaddr, &err);
+    if(sockfd < 0)
+    {
+        errno = err;
+        perror("tcp_server::socket");
+        sockfd = -1;
+        goto exit;
+    }
+
+    // Allows for rebinding to address after non-graceful termination
+    errno = 0;
+    if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&ISETOPTION, sizeof(ISETOPTION)) == -1)
+    {
+        perror("tcp_server::setsockopt");
+        sockfd = -2;
+        goto exit;
+    }
+
+    if(connect(sockfd, (struct sockaddr *)&sockaddr, socklen) < 0)
+    {
+        err = errno;
+        perror("tcp_client::connect");
+        close(sockfd);
+        sockfd = -2;
+        goto exit;
+    }
+
+exit:
+    return sockfd;
+}
+
 /**
  * Sets up an IPv4 or IPv6 address in a socket address struct.
  */

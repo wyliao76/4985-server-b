@@ -9,6 +9,10 @@ typedef struct Arguments
     const char *addr;
     // cppcheck-suppress unusedStructMember
     in_port_t port;
+    // cppcheck-suppress unusedStructMember
+    const char *sm_addr;
+    // cppcheck-suppress unusedStructMember
+    in_port_t sm_port;
 } Arguments;
 
 _Noreturn void usage(const char *binary_name, int exit_code, const char *message);

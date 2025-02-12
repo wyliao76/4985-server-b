@@ -15,7 +15,9 @@ _Pragma("clang diagnostic ignored \"-Wdisabled-macro-expansion\"")
 #endif
 
 #define INADDRESS "0.0.0.0"
+#define OUTADDRESS "127.0.0.1"
 #define PORT "8081"
+#define SM_PORT "8082"
 #define SIG_BUF 50
 
     static volatile sig_atomic_t running;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
@@ -41,11 +43,22 @@ int main(int argc, char *argv[])
 {
     int retval;
 
-    struct sigaction sa;
-    pid_t            pid;
-    int              sockfd;
-    Arguments        args;
-    int              err;
+    struct sigaction    sa;
+    pid_t               pid;
+    int                 sockfd;
+    int                 sm_fd;
+    Arguments           args;
+    int                 err;
+    const unsigned char sm_msg[] = {
+        ACC_Login,    // 10
+        0x01,         // 1
+        0x00,         // 0
+        0x04,         // 4
+        0x02,         // 2
+        0x02,         // 2
+        0x00,         // 0
+        ACC_Login,    // 10
+    };
 
     sa.sa_handler = handle_signal;    // Set handler function for SIGINT
     sigemptyset(&sa.sa_mask);         // Don't block any additional signals
@@ -61,13 +74,13 @@ int main(int argc, char *argv[])
     printf("Server launching... (press Ctrl+C to interrupt)\n");
 
     memset(&args, 0, sizeof(Arguments));
-    args.addr = INADDRESS;
-    args.port = convert_port(PORT, &err);
+    args.addr    = INADDRESS;
+    args.port    = convert_port(PORT, &err);
+    args.sm_addr = OUTADDRESS;
+    args.sm_port = convert_port(SM_PORT, &err);
 
     get_arguments(&args, argc, argv);
     validate_arguments(argv[0], &args);
-
-    printf("Listening on %s:%d\n", args.addr, args.port);
 
     retval = EXIT_SUCCESS;
 
@@ -76,6 +89,25 @@ int main(int argc, char *argv[])
     if(sockfd < 0)
     {
         fprintf(stderr, "main::tcp_server: Failed to create TCP server.\n");
+        return EXIT_FAILURE;
+    }
+
+    printf("Listening on %s:%d\n", args.addr, args.port);
+
+    // Start TCP Client
+    sm_fd = tcp_client(&args);
+    if(sm_fd < 0)
+    {
+        fprintf(stderr, "main::tcp_server: Failed to create TCP server.\n");
+        return EXIT_FAILURE;
+    }
+
+    printf("Connect to server manager at %s:%d\n", args.sm_addr, args.sm_port);
+
+    // just for demo
+    if(write(sm_fd, sm_msg, sizeof(user_count_t)) < 0)
+    {
+        fprintf(stderr, "main::tcp_client: write to server manager failed.\n");
         return EXIT_FAILURE;
     }
 
@@ -123,6 +155,7 @@ int main(int argc, char *argv[])
     }
 
 exit:
+    close(sm_fd);
     close(sockfd);
     return retval;
 }

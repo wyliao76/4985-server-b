@@ -117,6 +117,16 @@ typedef struct
     const char *msg;
 } codeMapping;
 
+typedef struct user_count_t
+{
+    uint8_t  type;
+    uint8_t  version;
+    uint16_t payload_len;
+    uint8_t  tag;
+    uint8_t  len;
+    uint16_t value;
+} user_count_t;
+
 /* TODO: THESE SHOULD NOT BE HERE, ONLY FOR DEMO */
 
 ssize_t request_handler(int connfd);
