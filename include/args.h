@@ -15,6 +15,14 @@ typedef struct Arguments
     in_port_t sm_port;
 } Arguments;
 
+typedef struct HOST
+{
+    // cppcheck-suppress unusedStructMember
+    const char *addr;
+    // cppcheck-suppress unusedStructMember
+    in_port_t port;
+} HOST;
+
 _Noreturn void usage(const char *binary_name, int exit_code, const char *message);
 
 void get_arguments(Arguments *args, int argc, char *argv[]);

@@ -96,11 +96,11 @@ int main(int argc, char *argv[])
 
     // Start TCP Client
     sm_fd = tcp_client(&args);
-    if(sm_fd < 0)
-    {
-        fprintf(stderr, "main::tcp_server: Failed to create TCP server.\n");
-        return EXIT_FAILURE;
-    }
+    // if(sm_fd < 0)
+    // {
+    //     fprintf(stderr, "main::tcp_server: Failed to create TCP server.\n");
+    //     return EXIT_FAILURE;
+    // }
 
     printf("Connect to server manager at %s:%d\n", args.sm_addr, args.sm_port);
 
@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
     if(write(sm_fd, sm_msg, sizeof(user_count_t)) < 0)
     {
         fprintf(stderr, "main::tcp_client: write to server manager failed.\n");
-        return EXIT_FAILURE;
+        // return EXIT_FAILURE;
     }
 
     // Wait for client connections

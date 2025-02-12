@@ -10,7 +10,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-static void setup_addr(struct sockaddr_storage *sockaddr, socklen_t *socklen, const Arguments *args);
+static void setup_addr(struct sockaddr_storage *sockaddr, socklen_t *socklen, const HOST *args);
 
 int tcp_socket(struct sockaddr_storage *sockaddr, int *err)
 {
@@ -36,11 +36,14 @@ int tcp_server(const Arguments *args)
     int                     sockfd;
     struct sockaddr_storage sockaddr;
     socklen_t               socklen;
+    HOST                    host;
 
     // Setup socket address
     socklen = 0;
     memset(&sockaddr, 0, sizeof(struct sockaddr_storage));
-    setup_addr(&sockaddr, &socklen, args);
+    host.addr = args->addr;
+    host.port = args->port;
+    setup_addr(&sockaddr, &socklen, &host);
 
     // Create tcp socket
     err    = 0;
@@ -94,11 +97,14 @@ int tcp_client(const Arguments *args)
     int                     sockfd;
     struct sockaddr_storage sockaddr;
     socklen_t               socklen;
+    HOST                    host;
 
     // Setup socket address
     socklen = 0;
     memset(&sockaddr, 0, sizeof(struct sockaddr_storage));
-    setup_addr(&sockaddr, &socklen, args);
+    host.addr = args->sm_addr;
+    host.port = args->sm_port;
+    setup_addr(&sockaddr, &socklen, &host);
 
     // Create tcp socket
     err    = 0;
@@ -124,6 +130,7 @@ int tcp_client(const Arguments *args)
     {
         err = errno;
         perror("tcp_client::connect");
+        errno = 0;
         close(sockfd);
         sockfd = -2;
         goto exit;
@@ -136,7 +143,7 @@ exit:
 /**
  * Sets up an IPv4 or IPv6 address in a socket address struct.
  */
-static void setup_addr(struct sockaddr_storage *sockaddr, socklen_t *socklen, const Arguments *args)
+static void setup_addr(struct sockaddr_storage *sockaddr, socklen_t *socklen, const HOST *args)
 {
     if(is_ipv6(args->addr))
     {
