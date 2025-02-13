@@ -91,7 +91,6 @@ exit:
 
 int tcp_client(const Arguments *args)
 {
-    int ISETOPTION = 1;
     int err;
 
     int                     sockfd;
@@ -114,15 +113,6 @@ int tcp_client(const Arguments *args)
         errno = err;
         perror("tcp_server::socket");
         sockfd = -1;
-        goto exit;
-    }
-
-    // Allows for rebinding to address after non-graceful termination
-    errno = 0;
-    if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&ISETOPTION, sizeof(ISETOPTION)) == -1)
-    {
-        perror("tcp_server::setsockopt");
-        sockfd = -2;
         goto exit;
     }
 
