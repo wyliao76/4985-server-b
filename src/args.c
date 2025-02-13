@@ -18,6 +18,8 @@ _Noreturn void usage(const char *binary_name, int exit_code, const char *message
     fputs("  -h, --help                         Display this help message\n", stderr);
     fputs("  -a <address>, --address <address>  The address of remote server.\n", stderr);
     fputs("  -p <port>,    --port <port>        The server port to use.\n", stderr);
+    fputs("  -A <sm address>, --sm address <sm address>  The address of server manager.\n", stderr);
+    fputs("  -P <sm port>,    --sm port <sm port>        The server manager port.\n", stderr);
     exit(exit_code);
 }
 
@@ -27,13 +29,15 @@ void get_arguments(Arguments *args, int argc, char *argv[])
     int err;
 
     static struct option long_options[] = {
-        {"address", required_argument, NULL, 'a'},
-        {"port",    required_argument, NULL, 'p'},
-        {"help",    no_argument,       NULL, 'h'},
-        {NULL,      0,                 NULL, 0  }
+        {"address",    required_argument, NULL, 'a'},
+        {"port",       required_argument, NULL, 'p'},
+        {"sm address", required_argument, NULL, 'A'},
+        {"sm_port",    required_argument, NULL, 'P'},
+        {"help",       no_argument,       NULL, 'h'},
+        {NULL,         0,                 NULL, 0  }
     };
 
-    while((opt = getopt_long(argc, argv, "ha:p:", long_options, NULL)) != -1)
+    while((opt = getopt_long(argc, argv, "ha:p:A:P:", long_options, NULL)) != -1)
     {
         switch(opt)
         {
@@ -48,10 +52,21 @@ void get_arguments(Arguments *args, int argc, char *argv[])
                     usage(argv[0], EXIT_FAILURE, "Port must be between 1 and 65535");
                 }
                 break;
+            case 'A':
+                args->sm_addr = optarg;
+                break;
+            case 'P':
+                args->sm_port = convert_port(optarg, &err);
+
+                if(err != 0)
+                {
+                    usage(argv[0], EXIT_FAILURE, "Port must be between 1 and 65535");
+                }
+                break;
             case 'h':
                 usage(argv[0], EXIT_SUCCESS, NULL);
             case '?':
-                if(optopt != 'a' && optopt != 'p')
+                if(optopt != 'a' && optopt != 'p' && optopt != 'A' && optopt != 'P')
                 {
                     char message[UNKNOWN_OPTION_MESSAGE_LEN];
 

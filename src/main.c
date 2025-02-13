@@ -1,5 +1,4 @@
 #include "args.h"
-#include "database.h"
 #include "messaging.h"
 #include "networking.h"
 #include <errno.h>
@@ -16,7 +15,9 @@ _Pragma("clang diagnostic ignored \"-Wdisabled-macro-expansion\"")
 #endif
 
 #define INADDRESS "0.0.0.0"
+#define OUTADDRESS "127.0.0.1"
 #define PORT "8081"
+#define SM_PORT "8082"
 #define SIG_BUF 50
 
     static volatile sig_atomic_t running;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
@@ -38,46 +39,26 @@ static void handle_signal(int sig)
     write(STDOUT_FILENO, message, strlen(message));
 }
 
-static int request_handler(int connfd)
-{
-    int retval;
-    int err;
-
-    header_t header;
-    uint8_t *buf;
-
-    err = 0;
-
-    if(read_packet(connfd, &buf, &header, &err) < 0)
-    {
-        errno = err;
-        perror("request_handler::read_fd_until_eof");
-    }
-
-    free(buf);
-
-    retval = EXIT_SUCCESS;
-    return retval;
-}
-
 int main(int argc, char *argv[])
 {
     int retval;
 
-    struct sigaction sa;
-    pid_t            pid;
-    int              sockfd;
-    Arguments        args;
-    int              err;
-    ssize_t          result;
-    DBO              dbo;
-    datum            output;
-    const char       key[]     = "name";
-    const char       value[]   = "Tia";
-    char             db_name[] = "mydb";
-    const char       uid[]     = "uid";
-    char            *username;
-    int              user_id;
+    struct sigaction    sa;
+    pid_t               pid;
+    int                 sockfd;
+    int                 sm_fd;
+    Arguments           args;
+    int                 err;
+    const unsigned char sm_msg[] = {
+        ACC_Login,    // 10
+        0x01,         // 1
+        0x00,         // 0
+        0x04,         // 4
+        0x02,         // 2
+        0x02,         // 2
+        0x00,         // 0
+        ACC_Login,    // 10
+    };
 
     sa.sa_handler = handle_signal;    // Set handler function for SIGINT
     sigemptyset(&sa.sa_mask);         // Don't block any additional signals
@@ -92,66 +73,14 @@ int main(int argc, char *argv[])
 
     printf("Server launching... (press Ctrl+C to interrupt)\n");
 
-    memset(&output, 0, sizeof(datum));
-
-    dbo.name = db_name;
-
-    result = database_open(&dbo, &err);
-    printf("result: %d\n", (int)result);
-    if(result == -1)
-    {
-        perror("database error");
-    }
-
-    // Store a string
-    if(store_string(dbo.db, key, value) != 0)
-    {
-        perror("store_string");
-        dbm_close(dbo.db);
-        return EXIT_FAILURE;
-    }
-
-    // Store an integer
-    if(store_int(dbo.db, uid, 1) != 0)
-    {
-        perror("store_int");
-        dbm_close(dbo.db);
-        return EXIT_FAILURE;
-    }
-
-    // Retrieve a string
-    username = retrieve_string(dbo.db, key);
-
-    if(username)
-    {
-        printf("Retrieved username: %s\n", username);
-        free(username);
-    }
-    else
-    {
-        printf("Username not found\n");
-    }
-
-    // Retrieve an integer
-    if(retrieve_int(dbo.db, uid, &user_id) == 0)
-    {
-        printf("Retrieved user ID: %d\n", user_id);
-    }
-    else
-    {
-        printf("User ID not found\n");
-    }
-
-    dbm_close(dbo.db);
-
     memset(&args, 0, sizeof(Arguments));
-    args.addr = INADDRESS;
-    args.port = convert_port(PORT, &err);
+    args.addr    = INADDRESS;
+    args.port    = convert_port(PORT, &err);
+    args.sm_addr = OUTADDRESS;
+    args.sm_port = convert_port(SM_PORT, &err);
 
     get_arguments(&args, argc, argv);
     validate_arguments(argv[0], &args);
-
-    printf("Listening on %s:%d\n", args.addr, args.port);
 
     retval = EXIT_SUCCESS;
 
@@ -161,6 +90,25 @@ int main(int argc, char *argv[])
     {
         fprintf(stderr, "main::tcp_server: Failed to create TCP server.\n");
         return EXIT_FAILURE;
+    }
+
+    printf("Listening on %s:%d\n", args.addr, args.port);
+
+    // Start TCP Client
+    sm_fd = tcp_client(&args);
+    // if(sm_fd < 0)
+    // {
+    //     fprintf(stderr, "main::tcp_server: Failed to create TCP server.\n");
+    //     return EXIT_FAILURE;
+    // }
+
+    printf("Connect to server manager at %s:%d\n", args.sm_addr, args.sm_port);
+
+    // just for demo
+    if(write(sm_fd, sm_msg, sizeof(user_count_t)) < 0)
+    {
+        fprintf(stderr, "main::tcp_client: write to server manager failed.\n");
+        // return EXIT_FAILURE;
     }
 
     // Wait for client connections
@@ -198,7 +146,7 @@ int main(int argc, char *argv[])
 
         if(pid == 0)
         {
-            retval = request_handler(connfd);
+            retval = (int)request_handler(connfd);
             close(connfd);
             goto exit;
         }
@@ -207,6 +155,7 @@ int main(int argc, char *argv[])
     }
 
 exit:
+    close(sm_fd);
     close(sockfd);
     return retval;
 }
