@@ -23,10 +23,10 @@ _Noreturn void usage(const char *binary_name, int exit_code, const char *message
     exit(exit_code);
 }
 
-void get_arguments(Arguments *args, int argc, char *argv[])
+fsm_state_t get_arguments(void *args)
 {
-    int opt;
-    int err;
+    int         opt;
+    fsm_args_t *fsm_args;
 
     static struct option long_options[] = {
         {"address",    required_argument, NULL, 'a'},
@@ -37,58 +37,50 @@ void get_arguments(Arguments *args, int argc, char *argv[])
         {NULL,         0,                 NULL, 0  }
     };
 
-    while((opt = getopt_long(argc, argv, "ha:p:A:P:", long_options, NULL)) != -1)
+    fsm_args = (fsm_args_t *)args;
+
+    printf("in get_arguments\n");
+
+    while((opt = getopt_long(fsm_args->argc, fsm_args->argv, "ha:p:A:P:", long_options, NULL)) != -1)
     {
         switch(opt)
         {
             case 'a':
-                args->addr = optarg;
+                fsm_args->args->addr = optarg;
                 break;
             case 'p':
-                args->port = convert_port(optarg, &err);
-
-                if(err != 0)
+                if(convert_port(optarg, &fsm_args->args->port) != 0)
                 {
-                    usage(argv[0], EXIT_FAILURE, "Port must be between 1 and 65535");
+                    // usage(fsm_args->argv[0], EXIT_FAILURE, "Port must be between 1 and 65535");
+                    fprintf(stderr, "Port must be between 0 to 65535\n");
+                    return ERROR;    // port not valid
                 }
                 break;
             case 'A':
-                args->sm_addr = optarg;
+                fsm_args->args->sm_addr = optarg;
                 break;
             case 'P':
-                args->sm_port = convert_port(optarg, &err);
-
-                if(err != 0)
+                if(convert_port(optarg, &fsm_args->args->sm_port) != 0)
                 {
-                    usage(argv[0], EXIT_FAILURE, "Port must be between 1 and 65535");
+                    // usage(fsm_args->argv[0], EXIT_FAILURE, "Port must be between 1 and 65535");
+                    fprintf(stderr, "Port must be between 0 to 65535\n");
+                    return ERROR;    // port not valid
                 }
                 break;
             case 'h':
-                usage(argv[0], EXIT_SUCCESS, NULL);
+                usage(fsm_args->argv[0], EXIT_SUCCESS, NULL);
             case '?':
                 if(optopt != 'a' && optopt != 'p' && optopt != 'A' && optopt != 'P')
                 {
                     char message[UNKNOWN_OPTION_MESSAGE_LEN];
 
                     snprintf(message, sizeof(message), "Unknown option '-%c'.", optopt);
-                    usage(argv[0], EXIT_FAILURE, message);
+                    usage(fsm_args->argv[0], EXIT_FAILURE, message);
                 }
                 break;
             default:
-                usage(argv[0], EXIT_FAILURE, NULL);
+                usage(fsm_args->argv[0], EXIT_FAILURE, NULL);
         }
     }
-}
-
-void validate_arguments(const char *binary_name, const Arguments *args)
-{
-    if(args->addr == NULL)
-    {
-        usage(binary_name, EXIT_FAILURE, "You must provide an ipv4 address to connect to.");
-    }
-
-    if(args->port == 0)
-    {
-        usage(binary_name, EXIT_FAILURE, "You must provide an available port to connect to.");
-    }
+    return EXIT;
 }

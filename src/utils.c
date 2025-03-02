@@ -1,16 +1,17 @@
 #include "utils.h"
+#include "fsm.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
-bool is_ipv6(const char *address)
-{
-    if(address == NULL || strchr(address, ';') == NULL)
-    {
-        return false;
-    }
+#if defined(__linux__) && defined(__clang__)
+_Pragma("clang diagnostic ignored \"-Wdisabled-macro-expansion\"")
+#endif
 
-    return true;
-}
+#define SIG_BUF 50
+
+    volatile sig_atomic_t running = 1;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 /* Calls `free()` and nullifies the ptr. */
 void nfree(void **ptr)
@@ -20,4 +21,39 @@ void nfree(void **ptr)
         free(*ptr);
         *ptr = NULL;
     }
+}
+
+static void handle_signal(int sig)
+{
+    char message[SIG_BUF];
+
+    snprintf(message, sizeof(message), "Caught signal: %d (%s)\n", sig, strsignal(sig));
+    write(STDOUT_FILENO, message, strlen(message));
+
+    if(sig == SIGINT)
+    {
+        running = 0;
+        snprintf(message, sizeof(message), "\n%s\n", "Shutting down gracefully...");
+    }
+    write(STDOUT_FILENO, message, strlen(message));
+}
+
+fsm_state_t setup_signal(void *arg)
+{
+    struct sigaction sa;
+    (void)arg;
+
+    sa.sa_handler = handle_signal;    // Set handler function for SIGINT
+    sigemptyset(&sa.sa_mask);         // Don't block any additional signals
+    sa.sa_flags = 0;
+
+    printf("in setup_signal\n");
+
+    // Register signal handler
+    if(sigaction(SIGINT, &sa, NULL) == -1)
+    {
+        perror("sigaction");
+        return ERROR;
+    }
+    return GET_ARGUMENTS;
 }

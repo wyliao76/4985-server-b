@@ -1,9 +1,13 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <stdbool.h>
+#include "fsm.h"
+#include <signal.h>
 
-bool is_ipv6(const char *address);
+extern volatile sig_atomic_t running;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+
 void nfree(void **ptr);
+
+fsm_state_t setup_signal(void *args);
 
 #endif
