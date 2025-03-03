@@ -1,5 +1,4 @@
 #include "utils.h"
-#include "fsm.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,22 +37,18 @@ static void handle_signal(int sig)
     write(STDOUT_FILENO, message, strlen(message));
 }
 
-fsm_state_t setup_signal(void *arg)
+void setup_signal(void)
 {
     struct sigaction sa;
-    (void)arg;
 
     sa.sa_handler = handle_signal;    // Set handler function for SIGINT
     sigemptyset(&sa.sa_mask);         // Don't block any additional signals
     sa.sa_flags = 0;
 
-    printf("in setup_signal\n");
-
     // Register signal handler
     if(sigaction(SIGINT, &sa, NULL) == -1)
     {
         perror("sigaction");
-        return ERROR;
+        exit(EXIT_FAILURE);
     }
-    return GET_ARGUMENTS;
 }

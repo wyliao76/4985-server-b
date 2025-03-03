@@ -3,11 +3,10 @@
 #ifndef MESSAGING_H
 #define MESSAGING_H
 
+#include "fsm.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <unistd.h>
-
-/* TODO: THESE SHOULD NOT BE HERE, ONLY FOR DEMO */
 
 typedef enum
 {
@@ -62,60 +61,80 @@ typedef enum
     ACC_Logout = 0x0C,
     // 13
     ACC_Create = 0x0D,
+    // 14
+    ACC_Edit = 0x0E,
+    // 20
+    CHT_Send = 0x14,
+    // 21
+    CHT_Received = 0x15,
+    // 30
+    LST_Get = 0x1E,
+    // 31
+    LST_Response = 0x1F
 } type_t;
 
-typedef struct header_t
-{
-    uint8_t  type;
-    uint8_t  version;
-    uint16_t sender_id;
-    uint16_t payload_len;
-} header_t;
+// typedef struct header_t
+// {
+//     uint8_t  type;
+//     uint8_t  version;
+//     uint16_t sender_id;
+//     uint16_t payload_len;
+// } header_t;
 
-typedef struct body_t
-{
-    uint8_t *msg;
-} body_t;
+// typedef struct body_t
+// {
+//     uint8_t *msg;
+// } body_t;
 
-typedef struct res_body_t
-{
-    uint8_t  tag;
-    uint8_t  len;
-    uint8_t  value;
-    uint8_t  msg_tag;
-    uint8_t  msg_len;
-    uint8_t *msg;
-} res_body_t;
+// typedef struct res_body_t
+// {
+//     uint8_t  tag;
+//     uint8_t  len;
+//     uint8_t  value;
+//     uint8_t  msg_tag;
+//     uint8_t  msg_len;
+//     uint8_t *msg;
+// } res_body_t;
 
-typedef struct acc_t
-{
-    uint8_t  username_tag;
-    uint8_t  username_len;
-    uint8_t *username;
-    uint8_t  password_tag;
-    uint8_t  password_len;
-    uint8_t *password;
-} acc_t;
+// typedef struct acc_t
+// {
+//     uint8_t  username_tag;
+//     uint8_t  username_len;
+//     uint8_t *username;
+//     uint8_t  password_tag;
+//     uint8_t  password_len;
+//     uint8_t *password;
+// } acc_t;
 
 typedef struct request_t
 {
-    header_t *header;
-    uint8_t   header_len;
-    body_t   *body;
+    void    *content;
+    size_t   len;
+    int     *err;
+    int     *client_fd;
+    uint16_t sender_id;
+    uint8_t  type;
+    code_t   code;
 } request_t;
 
-typedef struct response_t
-{
-    header_t   *header;
-    code_t     *code;
-    res_body_t *body;
-} response_t;
+// typedef struct response_t
+// {
+//     header_t   *header;
+//     code_t     *code;
+//     res_body_t *body;
+// } response_t;
 
-typedef struct
+typedef struct codeMapping
 {
     code_t      code;
     const char *msg;
 } codeMapping;
+
+typedef struct funcMapping
+{
+    type_t type;
+    ssize_t (*func)(const request_t *request);
+} funcMapping;
 
 typedef struct user_count_t
 {
@@ -129,20 +148,32 @@ typedef struct user_count_t
 
 /* TODO: THESE SHOULD NOT BE HERE, ONLY FOR DEMO */
 
-ssize_t request_handler(int connfd);
+void event_loop(int server_fd, int *err);
 
-ssize_t read_packet(int fd, uint8_t **buf, request_t *request, response_t *response, int *err);
+fsm_state_t request_handler(void *args);
 
-ssize_t deserialize_header(header_t *header, response_t *response, const uint8_t *buf, ssize_t nread);
+fsm_state_t header_handler(void *args);
 
-ssize_t deserialize_body(request_t *request, response_t *response, const uint8_t *buf, ssize_t nread, int *err);
+fsm_state_t body_handler(void *args);
 
-ssize_t serialize_header(const response_t *response, uint8_t *buf);
+fsm_state_t process_handler(void *args);
 
-ssize_t serialize_body(const response_t *response, uint8_t *buf);
+fsm_state_t cleanup_handler(void *args);
 
-ssize_t create_response(const request_t *request, response_t *response, uint8_t **buf, size_t *response_len, int *err);
+fsm_state_t error_handler(void *args);
 
-ssize_t sent_response(int fd, const uint8_t *buf, const size_t *response_len);
+// ssize_t read_packet(int fd, uint8_t **buf, request_t *request, response_t *response, int *err);
+
+// ssize_t deserialize_header(header_t *header, response_t *response, const uint8_t *buf, ssize_t nread);
+
+// ssize_t deserialize_body(request_t *request, response_t *response, const uint8_t *buf, ssize_t nread, int *err);
+
+// ssize_t serialize_header(const response_t *response, uint8_t *buf);
+
+// ssize_t serialize_body(const response_t *response, uint8_t *buf);
+
+// ssize_t create_response(const request_t *request, response_t *response, uint8_t **buf, size_t *response_len, int *err);
+
+// ssize_t sent_response(int fd, const uint8_t *buf, const size_t *response_len);
 
 #endif

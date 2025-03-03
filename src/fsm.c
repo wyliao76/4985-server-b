@@ -9,7 +9,7 @@ fsm_state_func fsm_transition(fsm_state_t from_id, fsm_state_t to_id, const stru
 
     for(size_t i = 0; i < transitions_size / sizeof(transitions[0]); i++)
     {
-        printf("%d\n", (int)i);
+        // printf("%d\n", (int)i);
         if(transitions[i].from_id == from_id && transitions[i].to_id == to_id)
         {
             transition_func = transitions[i].perform;

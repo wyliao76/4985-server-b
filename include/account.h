@@ -3,12 +3,12 @@
 
 #include "messaging.h"
 
-ssize_t packet_handler(const request_t *request, response_t *response, int *err);
+extern const funcMapping acc_func[];
 
-ssize_t account_create(const request_t *request, response_t *response, int *err);
+ssize_t account_create(const request_t *request);
 
-ssize_t account_login(const request_t *request, response_t *response, int *err);
+ssize_t account_login(const request_t *request);
 
-ssize_t account_logout(void);
+ssize_t account_logout(const request_t *request);
 
 #endif    // ACCOUNT_H

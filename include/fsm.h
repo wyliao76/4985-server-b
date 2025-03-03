@@ -8,10 +8,13 @@
 typedef enum
 {
     START,
-    SETUP_SIGNAL,
-    GET_ARGUMENTS,
+    REQUEST_HANDLER,
+    HEADER_HANDLER,
+    BODY_HANDLER,
+    PROCESS_HANDLER,
+    CLEANUP,
     ERROR,
-    EXIT
+    END
 } fsm_state;
 
 typedef int fsm_state_t;
