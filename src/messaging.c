@@ -69,6 +69,7 @@ static ssize_t execute_functions(request_t *request, const funcMapping functions
 void event_loop(int server_fd, int *err)
 {
     struct pollfd fds[MAX_FDS];
+    int           sessions[MAX_FDS];
     int           client_fd;
     int           added;
 
@@ -76,7 +77,8 @@ void event_loop(int server_fd, int *err)
     fds[0].events = POLLIN;
     for(int i = 1; i < MAX_FDS; i++)
     {
-        fds[i].fd = -1;
+        fds[i].fd   = -1;
+        sessions[i] = -1;
     }
 
     while(running)
@@ -142,13 +144,15 @@ void event_loop(int server_fd, int *err)
                     fsm_state_t    from_id;
                     fsm_state_t    to_id;
 
-                    from_id              = START;
-                    to_id                = REQUEST_HANDLER;
-                    request.err          = err;
+                    from_id = START;
+                    to_id   = REQUEST_HANDLER;
+
+                    request.err          = 0;
                     request.client_fd    = &fds[i].fd;
+                    request.session_id   = &sessions[i];
                     request.len          = HEADER_SIZE;
-                    request.content      = malloc(HEADER_SIZE);
                     request.response_len = 3;
+                    request.content      = malloc(HEADER_SIZE);
                     if(request.content == NULL)
                     {
                         perror("Malloc failed to allocate memory\n");
@@ -156,19 +160,12 @@ void event_loop(int server_fd, int *err)
                         fds[i].fd = -1;
                         continue;
                     }
-                    request.code = (code_t *)malloc(sizeof(code_t));
-                    if(request.code == NULL)
-                    {
-                        perror("Malloc failed to allocate memory\n");
-                        free(request.content);
-                        close(fds[i].fd);
-                        fds[i].fd = -1;
-                        continue;
-                    }
 
                     memset(request.response, 0, RESPONSE_SIZE);
 
-                    *request.code = OK;
+                    request.code = OK;
+
+                    printf("event_loop session_id %d\n", *request.session_id);
 
                     do
                     {
@@ -177,7 +174,6 @@ void event_loop(int server_fd, int *err)
                         {
                             printf("illegal state %d, %d \n", from_id, to_id);
                             free(request.content);
-                            free(request.code);
                             close(*request.client_fd);
                             *request.client_fd = -1;
                             break;
@@ -213,7 +209,7 @@ fsm_state_t request_handler(void *args)
 
     // Read first 6 bytes from fd
     errno = 0;
-    nread = read_fully(*request->client_fd, (char *)request->content, request->len, request->err);
+    nread = read_fully(*request->client_fd, (char *)request->content, request->len, &request->err);
     if(nread < 0)
     {
         perror("Read_fully error\n");
@@ -222,7 +218,7 @@ fsm_state_t request_handler(void *args)
 
     if(nread < (ssize_t)request->len)
     {
-        *request->code = INVALID_REQUEST;
+        request->code = INVALID_REQUEST;
         return ERROR_HANDLER;
     }
     return HEADER_HANDLER;
@@ -278,7 +274,7 @@ fsm_state_t body_handler(void *args)
     }
     request->content = buf;
 
-    nread = read_fully(*request->client_fd, (char *)request->content + HEADER_SIZE, request->len, request->err);
+    nread = read_fully(*request->client_fd, (char *)request->content + HEADER_SIZE, request->len, &request->err);
     if(nread < 0)
     {
         perror("Read_fully error\n");
@@ -312,14 +308,9 @@ fsm_state_t response_handler(void *args)
     printf("in response_handler %d\n", *request->client_fd);
     printf("response_len: %d\n", (request->response_len));
 
-    write_fully(*request->client_fd, request->response, request->response_len, request->err);
+    write_fully(*request->client_fd, request->response, request->response_len, &request->err);
 
     free(request->content);
-    free(request->code);
-
-    // temp
-    // close(*request->client_fd);
-    // *request->client_fd = -1;
     return END;
 }
 
@@ -328,13 +319,12 @@ fsm_state_t error_handler(void *args)
     request_t *request;
 
     request = (request_t *)args;
-    printf("in error_handler %d: %d\n", *request->client_fd, (int)*request->code);
+    printf("in error_handler %d: %d\n", *request->client_fd, (int)request->code);
     printf("response_len: %d\n", (request->response_len));
 
-    write_fully(*request->client_fd, request->response, request->response_len, request->err);
+    write_fully(*request->client_fd, request->response, request->response_len, &request->err);
 
     free(request->content);
-    free(request->code);
     close(*request->client_fd);
     *request->client_fd = -1;
     return END;

@@ -79,45 +79,6 @@ int main(int argc, char *argv[])
     // Wait for client connections
     err = 0;
     event_loop(server_fd, &err);
-    // while(running)
-    // {
-    //     int                connfd;
-    //     struct sockaddr_in connaddr;
-    //     socklen_t          connsize;
-
-    //     // !!BLOCKING!! Get client connection
-    //     connsize = sizeof(struct sockaddr_in);
-    //     memset(&connaddr, 0, connsize);
-
-    //     errno  = 0;
-    //     connfd = accept(server_fd, (struct sockaddr *)&connaddr, &connsize);
-    //     if(connfd < 0)
-    //     {
-    //         // perror("main::accept");
-    //         continue;
-    //     }
-
-    //     printf("New connection from: %s:%d\n", inet_ntoa(connaddr.sin_addr), connaddr.sin_port);
-
-    //     // Fork the process
-    //     errno = 0;
-    //     pid   = fork();
-    //     if(pid < 0)
-    //     {
-    //         perror("main::fork");
-    //         close(connfd);
-    //         continue;
-    //     }
-
-    //     if(pid == 0)
-    //     {
-    //         retval = (int)request_handler(connfd);
-    //         close(connfd);
-    //         goto exit;
-    //     }
-
-    //     close(connfd);
-    // }
 
     close(sm_fd);
     close(server_fd);

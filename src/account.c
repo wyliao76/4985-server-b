@@ -35,7 +35,7 @@ static void error_response(request_t *request)
     memcpy(ptr, &sender_id, sizeof(sender_id));
     ptr += sizeof(sender_id);
 
-    msg     = code_to_string(request->code);
+    msg     = code_to_string(&request->code);
     msg_len = (uint8_t)strlen(msg);
 
     request->response_len = (uint16_t)(request->response_len + (sizeof(uint8_t) + sizeof(uint8_t) + msg_len));
@@ -48,7 +48,7 @@ static void error_response(request_t *request)
     *ptr++ = INTEGER;
     *ptr++ = sizeof(uint8_t);
 
-    memcpy(ptr, request->code, sizeof(uint8_t));
+    memcpy(ptr, &request->code, sizeof(uint8_t));
     ptr += sizeof(uint8_t);
 
     *ptr++ = UTF8STRING;
@@ -77,11 +77,11 @@ ssize_t account_create(request_t *request)
 
     dbo.name = db_name;
 
-    result = database_open(&dbo, request->err);
+    result = database_open(&dbo, &request->err);
     if(result == -1)
     {
         perror("database error");
-        *request->code = SERVER_ERROR;
+        request->code = SERVER_ERROR;
         goto error;
     }
 
@@ -109,7 +109,7 @@ ssize_t account_create(request_t *request)
     if(existing)
     {
         printf("Retrieved password: %.*s\n", (int)pass_len, (char *)existing);
-        *request->code = USER_EXISTS;
+        request->code = USER_EXISTS;
         free(existing);
         goto error;
     }
@@ -118,7 +118,7 @@ ssize_t account_create(request_t *request)
     if(store_byte(dbo.db, username, user_len, password, pass_len) != 0)
     {
         perror("user");
-        *request->code = SERVER_ERROR;
+        request->code = SERVER_ERROR;
         goto error;
     }
 
@@ -180,11 +180,11 @@ ssize_t account_login(request_t *request)
 
     dbo.name = db_name;
 
-    result = database_open(&dbo, request->err);
+    result = database_open(&dbo, &request->err);
     if(result == -1)
     {
         perror("database error");
-        *request->code = SERVER_ERROR;
+        request->code = SERVER_ERROR;
         goto error;
     }
 
@@ -211,7 +211,7 @@ ssize_t account_login(request_t *request)
     if(!existing)
     {
         perror("Username not found");
-        *(request->code) = INVALID_USER_ID;
+        request->code = INVALID_USER_ID;
         goto error;
     }
 
@@ -220,7 +220,7 @@ ssize_t account_login(request_t *request)
     if(memcmp(existing, password, pass_len) != 0)
     {
         free(existing);
-        *(request->code) = INVALID_AUTH;
+        request->code = INVALID_AUTH;
         goto error;
     }
 
@@ -246,6 +246,10 @@ ssize_t account_login(request_t *request)
 
     user_id = htons(user_id);
     memcpy(ptr, &user_id, sizeof(user_id));
+
+    *request->session_id = ntohs(user_id);
+
+    printf("session_id %d\n", *request->session_id);
 
     dbm_close(dbo.db);
     free(existing);

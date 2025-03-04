@@ -80,11 +80,12 @@ typedef struct request_t
 {
     void    *content;
     size_t   len;
-    int     *err;
+    int      err;
     int     *client_fd;
+    int     *session_id;
     uint16_t sender_id;
     uint8_t  type;
-    code_t  *code;
+    code_t   code;
     uint8_t  response[RESPONSE_SIZE];
     uint16_t response_len;
 } request_t;
