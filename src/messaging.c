@@ -135,14 +135,6 @@ void event_loop(int server_fd, int *err)
         {
             if(fds[i].fd != -1)
             {
-                if(fds[i].revents & (POLLHUP | POLLERR))
-                {
-                    // Client disconnected or error, close and clean up
-                    printf("oops...\n");
-                    close(fds[i].fd);
-                    fds[i].fd = -1;
-                    continue;
-                }
                 if(fds[i].revents & POLLIN)
                 {
                     request_t      request;
@@ -150,13 +142,13 @@ void event_loop(int server_fd, int *err)
                     fsm_state_t    from_id;
                     fsm_state_t    to_id;
 
-                    from_id = START;
-                    to_id               = REQUEST_HANDLER;
-                    request.err         = err;
-                    request.client_fd   = &fds[i].fd;
-                    request.len         = HEADER_SIZE;
-                    request.content     = malloc(HEADER_SIZE);
-                    request.payload_len = 3;
+                    from_id              = START;
+                    to_id                = REQUEST_HANDLER;
+                    request.err          = err;
+                    request.client_fd    = &fds[i].fd;
+                    request.len          = HEADER_SIZE;
+                    request.content      = malloc(HEADER_SIZE);
+                    request.response_len = 3;
                     if(request.content == NULL)
                     {
                         perror("Malloc failed to allocate memory\n");
@@ -175,16 +167,6 @@ void event_loop(int server_fd, int *err)
                     }
 
                     memset(request.response, 0, RESPONSE_SIZE);
-                    // request.response = malloc(HEADER_SIZE);
-                    // if(request.response == NULL)
-                    // {
-                    //     perror("Malloc failed to allocate memory\n");
-                    //     free(request.content);
-                    //     free(request.code);
-                    //     close(fds[i].fd);
-                    //     fds[i].fd = -1;
-                    //     continue;
-                    // }
 
                     *request.code = OK;
 
@@ -196,7 +178,6 @@ void event_loop(int server_fd, int *err)
                             printf("illegal state %d, %d \n", from_id, to_id);
                             free(request.content);
                             free(request.code);
-                            // free(request.response);
                             close(*request.client_fd);
                             *request.client_fd = -1;
                             break;
@@ -205,6 +186,14 @@ void event_loop(int server_fd, int *err)
                         from_id = to_id;
                         to_id   = perform(&request);
                     } while(to_id != END);
+                }
+                if(fds[i].revents & (POLLHUP | POLLERR))
+                {
+                    // Client disconnected or error, close and clean up
+                    printf("oops...\n");
+                    close(fds[i].fd);
+                    fds[i].fd = -1;
+                    continue;
                 }
             }
         }
@@ -321,14 +310,12 @@ fsm_state_t response_handler(void *args)
     request = (request_t *)args;
 
     printf("in response_handler %d\n", *request->client_fd);
+    printf("response_len: %d\n", (request->response_len));
 
-    printf("response_len: %d\n", (HEADER_SIZE + ntohs(request->payload_len)));
-
-    write_fully(*request->client_fd, request->response, HEADER_SIZE + ntohs(request->payload_len), request->err);
+    write_fully(*request->client_fd, request->response, request->response_len, request->err);
 
     free(request->content);
     free(request->code);
-    // free(request->response);
 
     // temp
     // close(*request->client_fd);
@@ -341,10 +328,13 @@ fsm_state_t error_handler(void *args)
     request_t *request;
 
     request = (request_t *)args;
-    printf("in error_handler %d\n", *request->client_fd);
+    printf("in error_handler %d: %d\n", *request->client_fd, (int)*request->code);
+    printf("response_len: %d\n", (request->response_len));
+
+    write_fully(*request->client_fd, request->response, request->response_len, request->err);
+
     free(request->content);
     free(request->code);
-    // free(request->response);
     close(*request->client_fd);
     *request->client_fd = -1;
     return END;

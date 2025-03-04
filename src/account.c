@@ -15,6 +15,49 @@ const funcMapping acc_func[] = {
     {SYS_Success, NULL          }  // Null termination for safety
 };
 
+static void error_response(request_t *request)
+{
+    char *ptr;
+
+    // server default to 0
+    uint16_t    sender_id = 0x0000;
+    const char *msg;
+    uint8_t     msg_len;
+
+    ptr = (char *)request->response;
+    // tag
+    *ptr++ = SYS_Error;
+    // version
+    *ptr++ = TWO;
+
+    // sender_id
+    sender_id = htons(sender_id);
+    memcpy(ptr, &sender_id, sizeof(sender_id));
+    ptr += sizeof(sender_id);
+
+    msg     = code_to_string(request->code);
+    msg_len = (uint8_t)strlen(msg);
+
+    request->response_len = (uint16_t)(request->response_len + (sizeof(uint8_t) + sizeof(uint8_t) + msg_len));
+
+    // payload len
+    request->response_len = htons(request->response_len);
+    memcpy(ptr, &request->response_len, sizeof(request->response_len));
+    ptr += sizeof(request->response_len);
+
+    *ptr++ = INTEGER;
+    *ptr++ = sizeof(uint8_t);
+
+    memcpy(ptr, request->code, sizeof(uint8_t));
+    ptr += sizeof(uint8_t);
+
+    *ptr++ = UTF8STRING;
+    memcpy(ptr, &msg_len, sizeof(msg_len));
+    ptr += sizeof(msg_len);
+
+    memcpy(ptr, msg, msg_len);
+}
+
 ssize_t account_create(request_t *request)
 {
     char        db_name[] = "mydb";
@@ -26,9 +69,9 @@ ssize_t account_create(request_t *request)
     char       *ptr;
     const char *username;
     const char *password;
-    uint16_t    sender_id = 0x0000;
-    const char *msg;
-    uint8_t     msg_len;
+
+    // server default to 0
+    uint16_t sender_id = 0x0000;
 
     printf("in account_create %d \n", *request->client_fd);
 
@@ -91,52 +134,25 @@ ssize_t account_create(request_t *request)
     ptr += sizeof(sender_id);
 
     // payload len
-    request->payload_len = htons(request->payload_len);
-    memcpy(ptr, &request->payload_len, sizeof(request->payload_len));
-    ptr += sizeof(request->payload_len);
+    request->response_len = htons(request->response_len);
+    memcpy(ptr, &request->response_len, sizeof(request->response_len));
+    ptr += sizeof(request->response_len);
 
     *ptr++ = ENUMERATED;
     *ptr++ = sizeof(uint8_t);
     *ptr++ = ACC_Create;
 
     dbm_close(dbo.db);
+
+    request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
     return 0;
 
 error:
-    ptr = (char *)request->response;
-    // tag
-    *ptr++ = SYS_Error;
-    // version
-    *ptr++ = TWO;
-
-    // sender_id
-    sender_id = htons(sender_id);
-    memcpy(ptr, &sender_id, sizeof(sender_id));
-    ptr += sizeof(sender_id);
-
-    msg     = code_to_string(request->code);
-    msg_len = (uint8_t)strlen(msg);
-
-    request->payload_len = (uint16_t)(request->payload_len + (sizeof(uint8_t) + sizeof(uint8_t) + msg_len));
-
-    // payload len
-    request->payload_len = htons(request->payload_len);
-    memcpy(ptr, &request->payload_len, sizeof(request->payload_len));
-    ptr += sizeof(request->payload_len);
-
-    *ptr++ = INTEGER;
-    *ptr++ = sizeof(uint8_t);
-
-    memcpy(ptr, request->code, sizeof(uint8_t));
-    ptr += sizeof(uint8_t);
-
-    *ptr++ = UTF8STRING;
-    memcpy(ptr, &msg_len, sizeof(msg_len));
-    ptr += sizeof(msg_len);
-
-    memcpy(ptr, msg, msg_len);
+    error_response(request);
 
     dbm_close(dbo.db);
+
+    request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
     return -1;
 }
 
@@ -152,10 +168,11 @@ ssize_t account_login(request_t *request)
     char       *ptr;
     const char *username;
     const char *password;
-    uint16_t    sender_id = 0x0000;
-    const char *msg;
-    uint8_t     msg_len;
-    uint16_t    user_id = 1;
+
+    // server default to 0
+    uint16_t sender_id = 0x0000;
+    // toFix
+    uint16_t user_id = 1;
 
     printf("in account_login %d \n", *request->client_fd);
 
@@ -219,10 +236,10 @@ ssize_t account_login(request_t *request)
     ptr += sizeof(sender_id);
 
     // payload len
-    request->payload_len = 4;
-    request->payload_len = htons(request->payload_len);
-    memcpy(ptr, &request->payload_len, sizeof(request->payload_len));
-    ptr += sizeof(request->payload_len);
+    request->response_len = 4;
+    request->response_len = htons(request->response_len);
+    memcpy(ptr, &request->response_len, sizeof(request->response_len));
+    ptr += sizeof(request->response_len);
 
     *ptr++ = INTEGER;
     *ptr++ = sizeof(uint16_t);
@@ -232,49 +249,24 @@ ssize_t account_login(request_t *request)
 
     dbm_close(dbo.db);
     free(existing);
+
+    request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
     return 0;
 
 error:
-    ptr = (char *)request->response;
-    // tag
-    *ptr++ = SYS_Error;
-    // version
-    *ptr++ = TWO;
-
-    // sender_id
-    sender_id = htons(sender_id);
-    memcpy(ptr, &sender_id, sizeof(sender_id));
-    ptr += sizeof(sender_id);
-
-    msg     = code_to_string(request->code);
-    msg_len = (uint8_t)strlen(msg);
-
-    request->payload_len = (uint16_t)(request->payload_len + (sizeof(uint8_t) + sizeof(uint8_t) + msg_len));
-
-    // payload len
-    request->payload_len = htons(request->payload_len);
-    memcpy(ptr, &request->payload_len, sizeof(request->payload_len));
-    ptr += sizeof(request->payload_len);
-
-    *ptr++ = INTEGER;
-    *ptr++ = sizeof(uint8_t);
-
-    memcpy(ptr, request->code, sizeof(uint8_t));
-    ptr += sizeof(uint8_t);
-
-    *ptr++ = UTF8STRING;
-    memcpy(ptr, &msg_len, sizeof(msg_len));
-    ptr += sizeof(msg_len);
-
-    memcpy(ptr, msg, msg_len);
+    error_response(request);
 
     dbm_close(dbo.db);
+
+    request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
     return -1;
 }
 
 ssize_t account_logout(request_t *request)
 {
     printf("in account_logout %d \n", *request->client_fd);
+
+    request->response_len = 0;
 
     request->err = 0;
     return -1;

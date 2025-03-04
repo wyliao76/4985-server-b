@@ -85,9 +85,8 @@ typedef struct request_t
     uint16_t sender_id;
     uint8_t  type;
     code_t  *code;
-    // void    *response;
     uint8_t  response[RESPONSE_SIZE];
-    uint16_t payload_len;
+    uint16_t response_len;
 } request_t;
 
 typedef struct codeMapping
