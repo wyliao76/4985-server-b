@@ -22,6 +22,8 @@ typedef struct
 
 #define MAKE_CONST_DATUM(str) ((const_datum){(str), (datum_size)strlen(str) + 1})
 
+#define MAKE_CONST_DATUM_BYTE(str, size) ((const_datum){(str), (datum_size)(size)})
+
 typedef struct DBO
 {
     char *name;
@@ -34,8 +36,12 @@ int store_string(DBM *db, const char *key, const char *value);
 
 int store_int(DBM *db, const char *key, int value);
 
+int store_byte(DBM *db, const char *key, size_t k_size, const char *value, size_t v_size);
+
 char *retrieve_string(DBM *db, const char *key);
 
 int retrieve_int(DBM *db, const char *key, int *result);
+
+void *retrieve_byte(DBM *db, const void *key, size_t size);
 
 #endif    // DATABASE_H

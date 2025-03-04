@@ -12,8 +12,8 @@ typedef enum
     HEADER_HANDLER,
     BODY_HANDLER,
     PROCESS_HANDLER,
-    CLEANUP,
-    ERROR,
+    RESPONSE_HANDLER,
+    ERROR_HANDLER,
     END
 } fsm_state;
 

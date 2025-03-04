@@ -8,6 +8,9 @@
 #include <stdint.h>
 #include <unistd.h>
 
+#define HEADER_SIZE 6
+#define RESPONSE_SIZE 256
+
 typedef enum
 {
     ONE   = 0x01,
@@ -114,15 +117,11 @@ typedef struct request_t
     int     *client_fd;
     uint16_t sender_id;
     uint8_t  type;
-    code_t   code;
+    code_t  *code;
+    // void    *response;
+    uint8_t  response[RESPONSE_SIZE];
+    uint16_t payload_len;
 } request_t;
-
-// typedef struct response_t
-// {
-//     header_t   *header;
-//     code_t     *code;
-//     res_body_t *body;
-// } response_t;
 
 typedef struct codeMapping
 {
@@ -133,7 +132,7 @@ typedef struct codeMapping
 typedef struct funcMapping
 {
     type_t type;
-    ssize_t (*func)(const request_t *request);
+    ssize_t (*func)(request_t *request);
 } funcMapping;
 
 typedef struct user_count_t
@@ -148,6 +147,8 @@ typedef struct user_count_t
 
 /* TODO: THESE SHOULD NOT BE HERE, ONLY FOR DEMO */
 
+const char *code_to_string(const code_t *code);
+
 void event_loop(int server_fd, int *err);
 
 fsm_state_t request_handler(void *args);
@@ -158,7 +159,7 @@ fsm_state_t body_handler(void *args);
 
 fsm_state_t process_handler(void *args);
 
-fsm_state_t cleanup_handler(void *args);
+fsm_state_t response_handler(void *args);
 
 fsm_state_t error_handler(void *args);
 

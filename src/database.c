@@ -50,6 +50,14 @@ int store_int(DBM *db, const char *key, int value)
     return result;
 }
 
+int store_byte(DBM *db, const char *key, size_t k_size, const char *value, size_t v_size)
+{
+    const_datum key_datum   = MAKE_CONST_DATUM_BYTE(key, k_size);
+    const_datum value_datum = MAKE_CONST_DATUM_BYTE(value, v_size);
+
+    return dbm_store(db, *(datum *)&key_datum, *(datum *)&value_datum, DBM_REPLACE);
+}
+
 char *retrieve_string(DBM *db, const char *key)
 {
     const_datum key_datum;
@@ -92,4 +100,31 @@ int retrieve_int(DBM *db, const char *key, int *result)
     memcpy(result, fetched.dptr, sizeof(int));
 
     return 0;
+}
+
+void *retrieve_byte(DBM *db, const void *key, size_t size)
+{
+    const_datum key_datum;
+    datum       result;
+    char       *retrieved_str;
+
+    key_datum = MAKE_CONST_DATUM_BYTE(key, size);
+
+    result = dbm_fetch(db, *(datum *)&key_datum);
+
+    if(result.dptr == NULL)
+    {
+        return NULL;
+    }
+
+    retrieved_str = (char *)malloc(TO_SIZE_T(result.dsize));
+
+    if(!retrieved_str)
+    {
+        return NULL;
+    }
+
+    memcpy(retrieved_str, result.dptr, TO_SIZE_T(result.dsize));
+
+    return retrieved_str;
 }
