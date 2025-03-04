@@ -11,4 +11,6 @@ ssize_t account_login(request_t *request);
 
 ssize_t account_logout(request_t *request);
 
+ssize_t account_edit(request_t *request);
+
 #endif    // ACCOUNT_H

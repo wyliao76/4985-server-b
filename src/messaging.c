@@ -12,7 +12,6 @@
 #include <string.h>
 #include <unistd.h>
 
-// #define ERR_READ (-5)
 #define MAX_CLIENTS 2
 #define MAX_FDS (MAX_CLIENTS + 1)
 
@@ -58,7 +57,6 @@ static ssize_t execute_functions(request_t *request, const funcMapping functions
 {
     for(size_t i = 0; functions[i].type != SYS_Success; i++)
     {
-        // if(*(uint8_t *)request->content == (uint8_t)functions[i].type)
         if(request->type == functions[i].type)
         {
             return functions[i].func(request);
@@ -67,10 +65,6 @@ static ssize_t execute_functions(request_t *request, const funcMapping functions
     printf("Not builtin command: %d\n", *(uint16_t *)request->content);
     return 1;
 }
-
-// void deserializer(const request_t *request)
-// {
-// }
 
 void event_loop(int server_fd, int *err)
 {
@@ -157,7 +151,6 @@ void event_loop(int server_fd, int *err)
                     fsm_state_t    to_id;
 
                     from_id = START;
-                    // from_id           = ERROR;
                     to_id               = REQUEST_HANDLER;
                     request.err         = err;
                     request.client_fd   = &fds[i].fd;
@@ -338,8 +331,8 @@ fsm_state_t response_handler(void *args)
     // free(request->response);
 
     // temp
-    close(*request->client_fd);
-    *request->client_fd = -1;
+    // close(*request->client_fd);
+    // *request->client_fd = -1;
     return END;
 }
 
@@ -356,253 +349,3 @@ fsm_state_t error_handler(void *args)
     *request->client_fd = -1;
     return END;
 }
-
-// ssize_t deserialize_body(request_t *request, response_t *response, const uint8_t *buf, ssize_t nread, int *err)
-// {
-//     if(nread < (ssize_t)request->header->payload_len)
-//     {
-//         printf("body too short\n");
-//         *err              = EINVAL;
-//         *(response->code) = INVALID_REQUEST;
-//         return -1;
-//     }
-
-//     printf("type: %d\n", (int)request->header->type);
-
-//     if(request->header->type == ACC_Create || request->header->type == ACC_Login)
-//     {
-//         size_t offset;
-//         acc_t *acc;
-
-//         acc = (acc_t *)malloc(sizeof(acc_t));
-//         if(!acc)
-//         {
-//             perror("Failed to allocate acc_t");
-//             *err              = errno;
-//             *(response->code) = SERVER_ERROR;
-//             return -1;
-//         }
-//         memset(acc, 0, sizeof(acc_t));
-
-//         offset = 0;
-//         // Deserialize username tag
-//         memcpy(&acc->username_tag, buf + offset, sizeof(acc->username_tag));
-//         offset += sizeof(acc->username_tag);
-
-//         // printf("tag: %d\n", (int)acc->username_tag);
-
-//         // Deserialize username length
-//         memcpy(&acc->username_len, buf + offset, sizeof(acc->username_len));
-//         offset += sizeof(acc->username_len);
-
-//         // printf("len: %d\n", (int)acc->username_len);
-
-//         // Deserialize username
-//         acc->username = (uint8_t *)malloc((size_t)acc->username_len + 1);
-//         if(!acc->username)
-//         {
-//             perror("Failed to allocate username");
-//             free(acc);
-//             *err              = errno;
-//             *(response->code) = SERVER_ERROR;
-//             return -1;
-//         }
-//         memcpy(acc->username, buf + offset, acc->username_len);
-//         acc->username[acc->username_len] = '\0';
-//         offset += acc->username_len;
-
-//         // printf("username: %s\n", acc->username);
-
-//         // Deserialize username tag
-//         memcpy(&acc->password_tag, buf + offset, sizeof(acc->password_tag));
-//         offset += sizeof(acc->password_tag);
-
-//         // printf("password_tag: %d\n", (int)acc->password_tag);
-
-//         // Deserialize password length
-//         memcpy(&acc->password_len, buf + offset, sizeof(acc->password_len));
-//         offset += sizeof(acc->password_len);
-
-//         // printf("password_len: %d\n", (int)acc->password_len);
-
-//         // Deserialize password
-//         acc->password = (uint8_t *)malloc((size_t)acc->password_len + 1);
-//         if(!acc->password)
-//         {
-//             perror("Failed to allocate password");
-//             free(acc->username);
-//             free(acc);
-//             *err              = errno;
-//             *(response->code) = SERVER_ERROR;
-//             return -1;
-//         }
-//         memcpy(acc->password, buf + offset, acc->password_len);
-//         acc->password[acc->password_len] = '\0';
-
-//         free(request->body);
-//         request->body = (body_t *)acc;
-
-//         // printf("password: %s\n", acc->password);
-
-//         return 0;
-//     }
-
-//     printf("Unknown type: 0x%X\n", request->header->type);
-//     *(response->code) = INVALID_REQUEST;
-//     return -1;
-// }
-
-// ssize_t serialize_header(const response_t *response, uint8_t *buf)
-// {
-//     size_t offset;
-
-//     offset = 0;
-
-//     memcpy(buf + offset, &response->header->type, sizeof(response->header->type));
-//     offset += sizeof(response->header->type);
-
-//     memcpy(buf + offset, &response->header->version, sizeof(response->header->version));
-//     offset += sizeof(response->header->version);
-
-//     response->header->sender_id = htons(response->header->sender_id);
-//     memcpy(buf + offset, &response->header->sender_id, sizeof(response->header->sender_id));
-//     offset += sizeof(response->header->sender_id);
-
-//     response->header->payload_len = htons(response->header->payload_len);
-//     memcpy(buf + offset, &response->header->payload_len, sizeof(response->header->payload_len));
-
-//     return 0;
-// }
-
-// ssize_t serialize_body(const response_t *response, uint8_t *buf)
-// {
-//     size_t offset;
-
-//     offset = 0;
-
-//     memcpy(buf + offset, &response->body->tag, sizeof(response->body->tag));
-//     offset += sizeof(response->body->tag);
-
-//     memcpy(buf + offset, &response->body->len, sizeof(response->body->len));
-//     offset += sizeof(response->body->len);
-
-//     memcpy(buf + offset, &response->body->value, sizeof(response->body->value));
-//     offset += sizeof(response->body->value);
-
-//     printf("%d\n", (int)offset);
-//     response->header->payload_len = htons(response->header->payload_len);
-//     printf("%d\n", (int)response->header->payload_len);
-
-//     if(response->header->payload_len > offset)
-//     {
-//         memcpy(buf + offset, &response->body->msg_tag, sizeof(response->body->msg_tag));
-//         offset += sizeof(response->body->msg_tag);
-
-//         memcpy(buf + offset, &response->body->msg_len, sizeof(response->body->msg_len));
-//         offset += sizeof(response->body->msg_len);
-
-//         memcpy(buf + offset, code_to_string(response->code), response->header->payload_len - offset);
-//     }
-
-//     return 0;
-// }
-
-// ssize_t create_response(const request_t *request, response_t *response, uint8_t **buf, size_t *response_len, int *err)
-// {
-//     uint8_t    *newbuf;
-//     const char *msg;
-
-//     printf("response_len before: %d\n", (int)*response_len);
-
-//     *response_len = (size_t)(request->header_len + response->header->payload_len);
-//     printf("response_len: %d\n", (int)*response_len);
-
-//     *buf = (uint8_t *)malloc(*response_len);
-//     if(*buf == NULL)
-//     {
-//         perror("read_packet::realloc");
-//         *(response->code) = SERVER_ERROR;
-//         *err              = errno;
-//         return -1;
-//     }
-
-//     msg = code_to_string(response->code);
-
-//     // tag
-//     response->body->msg_tag = (uint8_t)UTF8STRING;
-//     // len
-//     response->body->msg_len = (uint8_t)(strlen(msg));
-//     printf("msg_len: %d\n", (int)response->body->msg_len);
-//     // msg
-
-//     *response_len = *response_len + response->body->msg_len + 2;
-//     printf("response_len final: %d\n", (int)*response_len);
-
-//     if(*response->code == OK)
-//     {
-//         response->header->type      = ACC_Login_Success;
-//         response->header->version   = ONE;
-//         response->header->sender_id = 0x00;
-//         // logout has no response body
-//         if(request->header->type == ACC_Logout)
-//         {
-//             response->header->payload_len = 0;
-//             *response_len                 = *response_len - 2 - 3;
-//         }
-//         else
-//         {
-//             // ok has no msg
-//             response->header->payload_len = (uint16_t)3;
-//             // no msg tag & msg len
-//             *response_len -= 2;
-//         }
-//     }
-//     else if(*response->code == INVALID_AUTH)
-//     {
-//         printf("*response->code == INVALID_AUTH\n");
-
-//         response->header->type        = SYS_Error;
-//         response->header->version     = ONE;
-//         response->header->sender_id   = 0x00;
-//         response->header->payload_len = (uint16_t)(3 + response->body->msg_len + 2);
-
-//         newbuf = (uint8_t *)realloc(*buf, *response_len);
-//         if(newbuf == NULL)
-//         {
-//             perror("read_packet::realloc");
-//             *(response->code) = SERVER_ERROR;
-//             return -4;
-//         }
-//         *buf = newbuf;
-//     }
-//     else
-//     {
-//         printf("*response->code == else \n");
-//         response->header->type        = SYS_Error;
-//         response->header->version     = ONE;
-//         response->header->sender_id   = 0x00;
-//         response->header->payload_len = (uint16_t)(3 + response->body->msg_len + 2);
-
-//         newbuf = (uint8_t *)realloc(*buf, *response_len);
-//         if(newbuf == NULL)
-//         {
-//             perror("read_packet::realloc");
-//             *(response->code) = SERVER_ERROR;
-//             return -4;
-//         }
-//         *buf = newbuf;
-//     }
-
-//     serialize_header(response, *buf);
-//     serialize_body(response, *buf + sizeof(header_t));
-//     return 0;
-// }
-
-// ssize_t sent_response(int fd, const uint8_t *buf, const size_t *response_len)
-// {
-//     ssize_t result;
-
-//     result = write(fd, buf, *response_len);
-//     printf("\n%d\n", (int)result);
-//     return 0;
-// }

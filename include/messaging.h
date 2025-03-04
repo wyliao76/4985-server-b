@@ -76,39 +76,6 @@ typedef enum
     LST_Response = 0x1F
 } type_t;
 
-// typedef struct header_t
-// {
-//     uint8_t  type;
-//     uint8_t  version;
-//     uint16_t sender_id;
-//     uint16_t payload_len;
-// } header_t;
-
-// typedef struct body_t
-// {
-//     uint8_t *msg;
-// } body_t;
-
-// typedef struct res_body_t
-// {
-//     uint8_t  tag;
-//     uint8_t  len;
-//     uint8_t  value;
-//     uint8_t  msg_tag;
-//     uint8_t  msg_len;
-//     uint8_t *msg;
-// } res_body_t;
-
-// typedef struct acc_t
-// {
-//     uint8_t  username_tag;
-//     uint8_t  username_len;
-//     uint8_t *username;
-//     uint8_t  password_tag;
-//     uint8_t  password_len;
-//     uint8_t *password;
-// } acc_t;
-
 typedef struct request_t
 {
     void    *content;
@@ -145,8 +112,6 @@ typedef struct user_count_t
     uint16_t value;
 } user_count_t;
 
-/* TODO: THESE SHOULD NOT BE HERE, ONLY FOR DEMO */
-
 const char *code_to_string(const code_t *code);
 
 void event_loop(int server_fd, int *err);
@@ -162,19 +127,5 @@ fsm_state_t process_handler(void *args);
 fsm_state_t response_handler(void *args);
 
 fsm_state_t error_handler(void *args);
-
-// ssize_t read_packet(int fd, uint8_t **buf, request_t *request, response_t *response, int *err);
-
-// ssize_t deserialize_header(header_t *header, response_t *response, const uint8_t *buf, ssize_t nread);
-
-// ssize_t deserialize_body(request_t *request, response_t *response, const uint8_t *buf, ssize_t nread, int *err);
-
-// ssize_t serialize_header(const response_t *response, uint8_t *buf);
-
-// ssize_t serialize_body(const response_t *response, uint8_t *buf);
-
-// ssize_t create_response(const request_t *request, response_t *response, uint8_t **buf, size_t *response_len, int *err);
-
-// ssize_t sent_response(int fd, const uint8_t *buf, const size_t *response_len);
 
 #endif
