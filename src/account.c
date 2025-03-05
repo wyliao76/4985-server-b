@@ -1,6 +1,5 @@
 #include "account.h"
 #include "database.h"
-#include "messaging.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <p101_c/p101_stdio.h>

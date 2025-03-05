@@ -1,5 +1,6 @@
 #include "messaging.h"
 #include "account.h"
+#include "chat.h"
 #include "database.h"
 #include "io.h"
 #include "utils.h"
@@ -63,7 +64,7 @@ static ssize_t execute_functions(request_t *request, const funcMapping functions
             return functions[i].func(request);
         }
     }
-    printf("Not builtin command: %d\n", *(uint16_t *)request->content);
+    printf("Not builtin command: %d\n", *(uint8_t *)request->content);
     return 1;
 }
 
@@ -363,16 +364,26 @@ fsm_state_t body_handler(void *args)
 fsm_state_t process_handler(void *args)
 {
     request_t *request;
+    ssize_t    result;
 
     request = (request_t *)args;
 
     printf("in process_handler %d\n", *request->client_fd);
 
-    if(execute_functions(request, acc_func) < 0)
+    result = execute_functions(request, acc_func);
+    if(result <= 0)
     {
-        return ERROR_HANDLER;
+        return (result < 0) ? ERROR_HANDLER : RESPONSE_HANDLER;
     }
-    return RESPONSE_HANDLER;
+
+    result = execute_functions(request, chat_func);
+    if(result <= 0)
+    {
+        return (result < 0) ? ERROR_HANDLER : RESPONSE_HANDLER;
+    }
+
+    request->code = INVALID_REQUEST;
+    return ERROR_HANDLER;
 }
 
 fsm_state_t response_handler(void *args)
