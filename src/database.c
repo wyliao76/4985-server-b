@@ -129,22 +129,21 @@ void *retrieve_byte(DBM *db, const void *key, size_t size)
     return retrieved_str;
 }
 
-ssize_t init_pk(const char *db_name, const char *pk_name, int *pk)
+ssize_t init_pk(DBO *dbo, const char *pk_name, int *pk)
 {
-    DBO dbo = {.name = db_name, .db = NULL};
     int err;
 
-    if(database_open(&dbo, &err) < 0)
+    if(database_open(dbo, &err) < 0)
     {
         perror("database error");
         return -1;
     }
 
-    if(retrieve_int(dbo.db, pk_name, pk) < 0)
+    if(retrieve_int(dbo->db, pk_name, pk) < 0)
     {
         // *pk = 0;
         *pk = 2;
-        if(store_int(dbo.db, pk_name, *pk) != 0)
+        if(store_int(dbo->db, pk_name, *pk) != 0)
         {
             return -1;
         }
@@ -152,6 +151,6 @@ ssize_t init_pk(const char *db_name, const char *pk_name, int *pk)
 
     printf("Retrieved user_count: %d\n", *pk);
 
-    dbm_close(dbo.db);
+    dbm_close(dbo->db);
     return 0;
 }

@@ -117,9 +117,12 @@ void event_loop(int server_fd, int *err)
     int           client_fd;
     int           added;
     int           user_count;
-    DBO           meta_userDB = {.name = "meta_user", .db = NULL};
+    char          db_name[] = "meta_user";
+    DBO           meta_userDB;
 
-    if(init_pk("meta_user", USER_PK, &user_count) < 0)
+    meta_userDB.name = db_name;
+
+    if(init_pk(&meta_userDB, USER_PK, &user_count) < 0)
     {
         perror("init_pk error\n");
         goto cleanup;
@@ -379,13 +382,17 @@ fsm_state_t response_handler(void *args)
     request = (request_t *)args;
 
     printf("in response_handler %d\n", *request->client_fd);
-    printf("response_len: %d\n", (request->response_len));
 
     request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
+    printf("response_len: %d\n", (request->response_len));
 
     write_fully(*request->client_fd, request->response, request->response_len, &request->err);
 
     free(request->content);
+
+    // for linux
+    close(*request->client_fd);
+    *request->client_fd = -1;
     return END;
 }
 

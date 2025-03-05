@@ -17,8 +17,10 @@ const funcMapping acc_func[] = {
 
 ssize_t account_create(request_t *request)
 {
-    DBO         userDB       = {.name = "users", .db = NULL};
-    DBO         index_userDB = {.name = "index_user", .db = NULL};
+    DBO         userDB;
+    DBO         index_userDB;
+    char        user_name[]  = "meta_user";
+    char        index_name[] = "index_user";
     void       *existing;
     uint8_t     user_len;
     uint8_t     pass_len;
@@ -30,6 +32,11 @@ ssize_t account_create(request_t *request)
 
     // server default to 0
     uint16_t sender_id = SERVER_ID;
+
+    userDB.name       = user_name;
+    userDB.db         = NULL;
+    index_userDB.name = index_name;
+    index_userDB.db   = NULL;
 
     copy = NULL;
 
@@ -151,8 +158,10 @@ error:
 
 ssize_t account_login(request_t *request)
 {
-    DBO         userDB       = {.name = "users", .db = NULL};
-    DBO         index_userDB = {.name = "index_user", .db = NULL};
+    DBO         userDB;
+    DBO         index_userDB;
+    char        user_name[]  = "meta_user";
+    char        index_name[] = "index_user";
     void       *existing;
     datum       output;
     uint8_t     user_len;
@@ -161,15 +170,19 @@ ssize_t account_login(request_t *request)
     const char *username;
     const char *password;
     char       *copy;
+    int         user_id;
 
     // server default to 0
     uint16_t sender_id = SERVER_ID;
-    // toFix
-    int user_id;
 
-    printf("in account_login %d \n", *request->client_fd);
+    userDB.name       = user_name;
+    userDB.db         = NULL;
+    index_userDB.name = index_name;
+    index_userDB.db   = NULL;
 
     copy = NULL;
+
+    printf("in account_login %d \n", *request->client_fd);
 
     memset(&output, 0, sizeof(datum));
 
@@ -268,12 +281,14 @@ ssize_t account_login(request_t *request)
     printf("session_id %d\n", *request->session_id);
 
     dbm_close(userDB.db);
+    dbm_close(index_userDB.db);
     free(existing);
     free(copy);
     return 0;
 
 error:
     dbm_close(userDB.db);
+    dbm_close(index_userDB.db);
     free(copy);
     return -1;
 }

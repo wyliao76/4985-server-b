@@ -28,8 +28,8 @@ typedef struct
 
 typedef struct DBO
 {
-    const char *name;
-    DBM        *db;
+    char *name;
+    DBM  *db;
 } DBO;
 
 ssize_t database_open(DBO *dbo, int *err);
@@ -46,6 +46,6 @@ int retrieve_int(DBM *db, const char *key, int *result);
 
 void *retrieve_byte(DBM *db, const void *key, size_t size);
 
-ssize_t init_pk(const char *db_name, const char *pk_name, int *pk);
+ssize_t init_pk(DBO *dbo, const char *pk_name, int *pk);
 
 #endif    // DATABASE_H
