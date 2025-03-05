@@ -19,7 +19,7 @@ ssize_t account_create(request_t *request)
 {
     DBO         userDB;
     DBO         index_userDB;
-    char        user_name[]  = "meta_user";
+    char        user_name[]  = "users";
     char        index_name[] = "index_user";
     void       *existing;
     uint8_t     user_len;
@@ -160,7 +160,7 @@ ssize_t account_login(request_t *request)
 {
     DBO         userDB;
     DBO         index_userDB;
-    char        user_name[]  = "meta_user";
+    char        user_name[]  = "users";
     char        index_name[] = "index_user";
     void       *existing;
     datum       output;
