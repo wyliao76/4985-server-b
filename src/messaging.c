@@ -14,6 +14,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#define TIMEOUT 3000    // 3s
+
 static ssize_t execute_functions(request_t *request, const funcMapping functions[]);
 
 static const codeMapping code_map[] = {
@@ -117,6 +119,7 @@ void event_loop(int server_fd, int *err)
     int           user_count;
     char          db_name[] = "meta_user";
     DBO           meta_userDB;
+    ssize_t       result;
 
     meta_userDB.name = db_name;
 
@@ -142,8 +145,9 @@ void event_loop(int server_fd, int *err)
 
     while(running)
     {
-        errno = 0;
-        if(poll(fds, MAX_FDS, -1) < 0)
+        errno  = 0;
+        result = poll(fds, MAX_FDS, TIMEOUT);
+        if(result == -1)
         {
             if(errno == EINTR)
             {
@@ -151,6 +155,17 @@ void event_loop(int server_fd, int *err)
             }
             perror("Poll error");
             goto cleanup;
+        }
+        if(result == 0)
+        {
+            printf("syncing meta_user...\n");
+            // update user index
+            if(store_int(meta_userDB.db, USER_PK, user_count) != 0)
+            {
+                perror("update user_index");
+                goto cleanup;
+            }
+            continue;
         }
 
         // Check for new connection
@@ -403,8 +418,8 @@ fsm_state_t response_handler(void *args)
     free(request->content);
 
     // for linux
-    // close(*request->client_fd);
-    // *request->client_fd = -1;
+    close(*request->client_fd);
+    *request->client_fd = -1;
     return END;
 }
 
