@@ -15,70 +15,34 @@ const funcMapping acc_func[] = {
     {SYS_Success, NULL          }  // Null termination for safety
 };
 
-static void error_response(request_t *request)
-{
-    char *ptr;
-
-    // server default to 0
-    uint16_t    sender_id = 0x0000;
-    const char *msg;
-    uint8_t     msg_len;
-
-    ptr = (char *)request->response;
-    // tag
-    *ptr++ = SYS_Error;
-    // version
-    *ptr++ = TWO;
-
-    // sender_id
-    sender_id = htons(sender_id);
-    memcpy(ptr, &sender_id, sizeof(sender_id));
-    ptr += sizeof(sender_id);
-
-    msg     = code_to_string(&request->code);
-    msg_len = (uint8_t)strlen(msg);
-
-    request->response_len = (uint16_t)(request->response_len + (sizeof(uint8_t) + sizeof(uint8_t) + msg_len));
-
-    // payload len
-    request->response_len = htons(request->response_len);
-    memcpy(ptr, &request->response_len, sizeof(request->response_len));
-    ptr += sizeof(request->response_len);
-
-    *ptr++ = INTEGER;
-    *ptr++ = sizeof(uint8_t);
-
-    memcpy(ptr, &request->code, sizeof(uint8_t));
-    ptr += sizeof(uint8_t);
-
-    *ptr++ = UTF8STRING;
-    memcpy(ptr, &msg_len, sizeof(msg_len));
-    ptr += sizeof(msg_len);
-
-    memcpy(ptr, msg, msg_len);
-}
-
 ssize_t account_create(request_t *request)
 {
-    char        db_name[] = "mydb";
-    ssize_t     result;
-    DBO         dbo;
+    DBO         userDB       = {.name = "users", .db = NULL};
+    DBO         index_userDB = {.name = "index_user", .db = NULL};
     void       *existing;
     uint8_t     user_len;
     uint8_t     pass_len;
     char       *ptr;
     const char *username;
     const char *password;
+    char       *copy;
+    int         user_id;
 
     // server default to 0
-    uint16_t sender_id = 0x0000;
+    uint16_t sender_id = SERVER_ID;
+
+    copy = NULL;
 
     printf("in account_create %d \n", *request->client_fd);
 
-    dbo.name = db_name;
+    if(database_open(&userDB, &request->err) < 0)
+    {
+        perror("database error");
+        request->code = SERVER_ERROR;
+        goto error;
+    }
 
-    result = database_open(&dbo, &request->err);
-    if(result == -1)
+    if(database_open(&index_userDB, &request->err) < 0)
     {
         perror("database error");
         request->code = SERVER_ERROR;
@@ -104,8 +68,7 @@ ssize_t account_create(request_t *request)
     printf("password: %.*s\n", (int)pass_len, password);
 
     // check user exists
-    existing = retrieve_byte(dbo.db, username, user_len);
-
+    existing = retrieve_byte(userDB.db, username, user_len);
     if(existing)
     {
         printf("Retrieved password: %.*s\n", (int)pass_len, (char *)existing);
@@ -114,13 +77,44 @@ ssize_t account_create(request_t *request)
         goto error;
     }
 
+    (*request->user_count)++;
+    *request->session_id = *request->user_count;
+
+    printf("request->user_count: %d\n", *request->user_count);
+    printf("request->session_id: %d\n", *request->session_id);
+
     // Store user
-    if(store_byte(dbo.db, username, user_len, password, pass_len) != 0)
+    if(store_byte(userDB.db, username, user_len, password, pass_len) != 0)
     {
-        perror("user");
+        perror("store_byte");
         request->code = SERVER_ERROR;
         goto error;
     }
+
+    copy = strndup(username, user_len);
+    if(!copy)
+    {
+        perror("Failed to allocate memory");
+        request->code = SERVER_ERROR;
+        goto error;
+    }
+
+    // Store user index
+    if(store_int(index_userDB.db, copy, *request->session_id) < 0)
+    {
+        perror("update user_index");
+        request->code = SERVER_ERROR;
+        goto error;
+    }
+
+    // for checking
+    if(retrieve_int(index_userDB.db, copy, &user_id) < 0)
+    {
+        printf("account account retrieve_int error\n");
+        request->code = SERVER_ERROR;
+        goto error;
+    }
+    printf("account login: user_id: %.*d\n", (int)sizeof(*request->session_id), user_id);
 
     ptr = (char *)request->response;
     // tag
@@ -142,25 +136,23 @@ ssize_t account_create(request_t *request)
     *ptr++ = sizeof(uint8_t);
     *ptr++ = ACC_Create;
 
-    dbm_close(dbo.db);
-
-    request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
+    dbm_close(userDB.db);
+    dbm_close(index_userDB.db);
+    free(copy);
     return 0;
 
 error:
-    error_response(request);
+    dbm_close(userDB.db);
+    dbm_close(index_userDB.db);
+    free(copy);
 
-    dbm_close(dbo.db);
-
-    request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
     return -1;
 }
 
 ssize_t account_login(request_t *request)
 {
-    char        db_name[] = "mydb";
-    ssize_t     result;
-    DBO         dbo;
+    DBO         userDB       = {.name = "users", .db = NULL};
+    DBO         index_userDB = {.name = "index_user", .db = NULL};
     void       *existing;
     datum       output;
     uint8_t     user_len;
@@ -168,20 +160,27 @@ ssize_t account_login(request_t *request)
     char       *ptr;
     const char *username;
     const char *password;
+    char       *copy;
 
     // server default to 0
-    uint16_t sender_id = 0x0000;
+    uint16_t sender_id = SERVER_ID;
     // toFix
-    uint16_t user_id = 1;
+    int user_id;
 
     printf("in account_login %d \n", *request->client_fd);
 
+    copy = NULL;
+
     memset(&output, 0, sizeof(datum));
 
-    dbo.name = db_name;
+    if(database_open(&userDB, &request->err) < 0)
+    {
+        perror("database error");
+        request->code = SERVER_ERROR;
+        goto error;
+    }
 
-    result = database_open(&dbo, &request->err);
-    if(result == -1)
+    if(database_open(&index_userDB, &request->err) < 0)
     {
         perror("database error");
         request->code = SERVER_ERROR;
@@ -207,7 +206,7 @@ ssize_t account_login(request_t *request)
     printf("password: %.*s\n", (int)pass_len, password);
 
     // check user exists
-    existing = retrieve_byte(dbo.db, username, user_len);
+    existing = retrieve_byte(userDB.db, username, user_len);
     if(!existing)
     {
         perror("Username not found");
@@ -223,6 +222,23 @@ ssize_t account_login(request_t *request)
         request->code = INVALID_AUTH;
         goto error;
     }
+
+    copy = strndup(username, user_len);
+    if(!copy)
+    {
+        perror("Failed to allocate memory");
+        request->code = SERVER_ERROR;
+        goto error;
+    }
+
+    if(retrieve_int(index_userDB.db, copy, &user_id) < 0)
+    {
+        printf("account login retrieve_int error\n");
+        free(existing);
+        request->code = SERVER_ERROR;
+        goto error;
+    }
+    printf("account login: user_id: %.*d\n", (int)sizeof(*request->session_id), user_id);
 
     ptr = (char *)request->response;
     // tag
@@ -244,25 +260,21 @@ ssize_t account_login(request_t *request)
     *ptr++ = INTEGER;
     *ptr++ = sizeof(uint16_t);
 
-    user_id = htons(user_id);
+    user_id = htons((uint16_t)user_id);
     memcpy(ptr, &user_id, sizeof(user_id));
 
-    *request->session_id = ntohs(user_id);
+    *request->session_id = ntohs((uint16_t)user_id);
 
     printf("session_id %d\n", *request->session_id);
 
-    dbm_close(dbo.db);
+    dbm_close(userDB.db);
     free(existing);
-
-    request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
+    free(copy);
     return 0;
 
 error:
-    error_response(request);
-
-    dbm_close(dbo.db);
-
-    request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
+    dbm_close(userDB.db);
+    free(copy);
     return -1;
 }
 

@@ -50,7 +50,7 @@ int store_int(DBM *db, const char *key, int value)
     return result;
 }
 
-int store_byte(DBM *db, const char *key, size_t k_size, const char *value, size_t v_size)
+int store_byte(DBM *db, const void *key, size_t k_size, const void *value, size_t v_size)
 {
     const_datum key_datum   = MAKE_CONST_DATUM_BYTE(key, k_size);
     const_datum value_datum = MAKE_CONST_DATUM_BYTE(value, v_size);
@@ -127,4 +127,31 @@ void *retrieve_byte(DBM *db, const void *key, size_t size)
     memcpy(retrieved_str, result.dptr, TO_SIZE_T(result.dsize));
 
     return retrieved_str;
+}
+
+ssize_t init_pk(const char *db_name, const char *pk_name, int *pk)
+{
+    DBO dbo = {.name = db_name, .db = NULL};
+    int err;
+
+    if(database_open(&dbo, &err) < 0)
+    {
+        perror("database error");
+        return -1;
+    }
+
+    if(retrieve_int(dbo.db, pk_name, pk) < 0)
+    {
+        // *pk = 0;
+        *pk = 2;
+        if(store_int(dbo.db, pk_name, *pk) != 0)
+        {
+            return -1;
+        }
+    }
+
+    printf("Retrieved user_count: %d\n", *pk);
+
+    dbm_close(dbo.db);
+    return 0;
 }

@@ -10,6 +10,7 @@
 
 #define HEADER_SIZE 6
 #define RESPONSE_SIZE 256
+#define SERVER_ID 0x0000
 
 typedef enum
 {
@@ -83,6 +84,7 @@ typedef struct request_t
     int      err;
     int     *client_fd;
     int     *session_id;
+    int     *user_count;
     uint16_t sender_id;
     uint8_t  type;
     code_t   code;
@@ -113,6 +115,8 @@ typedef struct user_count_t
 } user_count_t;
 
 const char *code_to_string(const code_t *code);
+
+void error_response(request_t *request);
 
 void event_loop(int server_fd, int *err);
 

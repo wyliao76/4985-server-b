@@ -1,5 +1,6 @@
 #include "messaging.h"
 #include "account.h"
+#include "database.h"
 #include "io.h"
 #include "utils.h"
 #include <arpa/inet.h>
@@ -66,12 +67,69 @@ static ssize_t execute_functions(request_t *request, const funcMapping functions
     return 1;
 }
 
+void error_response(request_t *request)
+{
+    char *ptr;
+
+    // server default to 0
+    uint16_t    sender_id = SERVER_ID;
+    const char *msg;
+    uint8_t     msg_len;
+
+    ptr = (char *)request->response;
+    // tag
+    *ptr++ = SYS_Error;
+    // version
+    *ptr++ = TWO;
+
+    // sender_id
+    sender_id = htons(sender_id);
+    memcpy(ptr, &sender_id, sizeof(sender_id));
+    ptr += sizeof(sender_id);
+
+    msg     = code_to_string(&request->code);
+    msg_len = (uint8_t)strlen(msg);
+
+    request->response_len = (uint16_t)(request->response_len + (sizeof(uint8_t) + sizeof(uint8_t) + msg_len));
+
+    // payload len
+    request->response_len = htons(request->response_len);
+    memcpy(ptr, &request->response_len, sizeof(request->response_len));
+    ptr += sizeof(request->response_len);
+
+    *ptr++ = INTEGER;
+    *ptr++ = sizeof(uint8_t);
+
+    memcpy(ptr, &request->code, sizeof(uint8_t));
+    ptr += sizeof(uint8_t);
+
+    *ptr++ = UTF8STRING;
+    memcpy(ptr, &msg_len, sizeof(msg_len));
+    ptr += sizeof(msg_len);
+
+    memcpy(ptr, msg, msg_len);
+}
+
 void event_loop(int server_fd, int *err)
 {
     struct pollfd fds[MAX_FDS];
     int           sessions[MAX_FDS];
     int           client_fd;
     int           added;
+    int           user_count;
+    DBO           meta_userDB = {.name = "meta_user", .db = NULL};
+
+    if(init_pk("meta_user", USER_PK, &user_count) < 0)
+    {
+        perror("init_pk error\n");
+        goto cleanup;
+    }
+
+    if(database_open(&meta_userDB, err) < 0)
+    {
+        perror("database error");
+        goto cleanup;
+    }
 
     fds[0].fd     = server_fd;
     fds[0].events = POLLIN;
@@ -147,9 +205,11 @@ void event_loop(int server_fd, int *err)
                     from_id = START;
                     to_id   = REQUEST_HANDLER;
 
-                    request.err          = 0;
-                    request.client_fd    = &fds[i].fd;
+                    request.err       = 0;
+                    request.client_fd = &fds[i].fd;
+                    // user_id
                     request.session_id   = &sessions[i];
+                    request.user_count   = &user_count;
                     request.len          = HEADER_SIZE;
                     request.response_len = 3;
                     request.content      = malloc(HEADER_SIZE);
@@ -157,7 +217,8 @@ void event_loop(int server_fd, int *err)
                     {
                         perror("Malloc failed to allocate memory\n");
                         close(fds[i].fd);
-                        fds[i].fd = -1;
+                        fds[i].fd   = -1;
+                        sessions[i] = -1;
                         continue;
                     }
 
@@ -195,8 +256,19 @@ void event_loop(int server_fd, int *err)
         }
     }
 
+    printf("syncing meta_user...\n");
+    // update user index
+    if(store_int(meta_userDB.db, USER_PK, user_count) != 0)
+    {
+        perror("update user_index");
+        goto cleanup;
+    }
+    dbm_close(meta_userDB.db);
+
 cleanup:
-    return;
+    printf("syncing meta_user in cleanup...\n");
+    store_int(meta_userDB.db, USER_PK, user_count);
+    dbm_close(meta_userDB.db);
 }
 
 fsm_state_t request_handler(void *args)
@@ -210,6 +282,7 @@ fsm_state_t request_handler(void *args)
     // Read first 6 bytes from fd
     errno = 0;
     nread = read_fully(*request->client_fd, (char *)request->content, request->len, &request->err);
+    printf("request_handler nread %d\n", (int)nread);
     if(nread < 0)
     {
         perror("Read_fully error\n");
@@ -308,6 +381,8 @@ fsm_state_t response_handler(void *args)
     printf("in response_handler %d\n", *request->client_fd);
     printf("response_len: %d\n", (request->response_len));
 
+    request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
+
     write_fully(*request->client_fd, request->response, request->response_len, &request->err);
 
     free(request->content);
@@ -320,6 +395,12 @@ fsm_state_t error_handler(void *args)
 
     request = (request_t *)args;
     printf("in error_handler %d: %d\n", *request->client_fd, (int)request->code);
+
+    if(request->type != ACC_Logout)
+    {
+        error_response(request);
+        request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
+    }
     printf("response_len: %d\n", (request->response_len));
 
     write_fully(*request->client_fd, request->response, request->response_len, &request->err);
