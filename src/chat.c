@@ -79,11 +79,20 @@ ssize_t chat_broadcast(request_t *request)
     printf("content: %.*s\n", (int)content_len, content);
     printf("username: %.*s\n", (int)user_len, username);
 
-    request->response_len = (uint16_t)(request->len);
-    printf("response_len: %d\n", (uint16_t)(HEADER_SIZE + request->len));
-    memcpy(request->response, request->content, (uint16_t)(HEADER_SIZE + request->len));
+    request->response_len = (uint16_t)(HEADER_SIZE + request->len);
+    printf("response_len: %d\n", request->response_len);
+    memcpy(request->response, request->content, request->response_len);
 
-    request->response_len = htons(request->response_len);
+    for(int i = 1; i < MAX_FDS; i++)
+    {
+        if(request->fds[i].fd != -1)
+        {
+            printf("broadcasting... %d\n", request->fds[i].fd);
+            write_fully(request->fds[i].fd, request->response, request->response_len, &request->err);
+        }
+    }
+
+    request->response_len = 0;
 
     return 0;
 }

@@ -4,6 +4,7 @@
 #define MESSAGING_H
 
 #include "fsm.h"
+#include <poll.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -11,6 +12,8 @@
 #define HEADER_SIZE 6
 #define RESPONSE_SIZE 256
 #define SERVER_ID 0x0000
+#define MAX_CLIENTS 2
+#define MAX_FDS (MAX_CLIENTS + 1)
 
 typedef enum
 {
@@ -79,17 +82,18 @@ typedef enum
 
 typedef struct request_t
 {
-    void    *content;
-    size_t   len;
-    int      err;
-    int     *client_fd;
-    int     *session_id;
-    int     *user_count;
-    uint16_t sender_id;
-    uint8_t  type;
-    code_t   code;
-    uint8_t  response[RESPONSE_SIZE];
-    uint16_t response_len;
+    void          *content;
+    size_t         len;
+    int            err;
+    int           *client_fd;
+    int           *session_id;
+    int           *user_count;
+    uint16_t       sender_id;
+    uint8_t        type;
+    code_t         code;
+    uint8_t        response[RESPONSE_SIZE];
+    uint16_t       response_len;
+    struct pollfd *fds;
 } request_t;
 
 typedef struct codeMapping

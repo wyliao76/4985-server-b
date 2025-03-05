@@ -14,9 +14,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#define MAX_CLIENTS 2
-#define MAX_FDS (MAX_CLIENTS + 1)
-
 static ssize_t execute_functions(request_t *request, const funcMapping functions[]);
 
 static const codeMapping code_map[] = {
@@ -216,6 +213,7 @@ void event_loop(int server_fd, int *err)
                     request.user_count   = &user_count;
                     request.len          = HEADER_SIZE;
                     request.response_len = 3;
+                    request.fds          = fds;
                     request.content      = malloc(HEADER_SIZE);
                     if(request.content == NULL)
                     {
@@ -394,16 +392,19 @@ fsm_state_t response_handler(void *args)
 
     printf("in response_handler %d\n", *request->client_fd);
 
-    request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
-    printf("response_len: %d\n", (request->response_len));
+    if(request->type != CHT_Send)
+    {
+        request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
+        printf("response_len: %d\n", (request->response_len));
 
-    write_fully(*request->client_fd, request->response, request->response_len, &request->err);
+        write_fully(*request->client_fd, request->response, request->response_len, &request->err);
+    }
 
     free(request->content);
 
     // for linux
-    close(*request->client_fd);
-    *request->client_fd = -1;
+    // close(*request->client_fd);
+    // *request->client_fd = -1;
     return END;
 }
 
