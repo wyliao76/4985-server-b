@@ -83,10 +83,10 @@ ssize_t account_create(request_t *request)
         goto error;
     }
 
-    (*request->user_count)++;
-    *request->session_id = *request->user_count;
+    user_index++;
+    *request->session_id = user_index;
 
-    printf("request->user_count: %d\n", *request->user_count);
+    printf("user_index: %d\n", user_index);
     printf("request->session_id: %d\n", *request->session_id);
 
     // Store user

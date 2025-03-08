@@ -5,6 +5,7 @@
 
 #include "fsm.h"
 #include <poll.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -14,6 +15,9 @@
 #define SERVER_ID 0x0000
 #define MAX_CLIENTS 2
 #define MAX_FDS (MAX_CLIENTS + 1)
+
+extern int user_count;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+extern int user_index;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 typedef enum
 {
@@ -87,7 +91,6 @@ typedef struct request_t
     int            err;
     int           *client_fd;
     int           *session_id;
-    int           *user_count;
     uint16_t       sender_id;
     uint8_t        type;
     code_t         code;

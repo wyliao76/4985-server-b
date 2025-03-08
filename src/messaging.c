@@ -15,6 +15,8 @@
 #include <unistd.h>
 
 #define TIMEOUT 3000    // 3s
+int user_count = 0;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+int user_index = 2;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 static ssize_t execute_functions(request_t *request, const funcMapping functions[]);
 
@@ -113,17 +115,17 @@ void error_response(request_t *request)
 void event_loop(int server_fd, int *err)
 {
     struct pollfd fds[MAX_FDS];
-    int           sessions[MAX_FDS];
-    int           client_fd;
-    int           added;
-    int           user_count;
-    char          db_name[] = "meta_user";
-    DBO           meta_userDB;
-    ssize_t       result;
+    // user_ids
+    int     sessions[MAX_FDS];
+    int     client_fd;
+    int     added;
+    char    db_name[] = "meta_user";
+    DBO     meta_userDB;
+    ssize_t result;
 
     meta_userDB.name = db_name;
 
-    if(init_pk(&meta_userDB, USER_PK, &user_count) < 0)
+    if(init_pk(&meta_userDB, USER_PK) < 0)
     {
         perror("init_pk error\n");
         goto cleanup;
@@ -159,8 +161,21 @@ void event_loop(int server_fd, int *err)
         if(result == 0)
         {
             printf("syncing meta_user...\n");
+
+            // printf("user_index: %d\n", user_index);
+            user_count = 0;
+            for(int i = 1; i < MAX_FDS; i++)
+            {
+                printf("user id: %d\n", sessions[i]);
+                if(sessions[i] != -1)
+                {
+                    user_count++;
+                }
+            }
+            printf("user_count: %d\n", user_count);
+
             // update user index
-            if(store_int(meta_userDB.db, USER_PK, user_count) != 0)
+            if(store_int(meta_userDB.db, USER_PK, user_index) != 0)
             {
                 perror("update user_index");
                 goto cleanup;
@@ -225,7 +240,6 @@ void event_loop(int server_fd, int *err)
                     request.client_fd = &fds[i].fd;
                     // user_id
                     request.session_id   = &sessions[i];
-                    request.user_count   = &user_count;
                     request.len          = HEADER_SIZE;
                     request.response_len = 3;
                     request.fds          = fds;
@@ -252,8 +266,10 @@ void event_loop(int server_fd, int *err)
                         {
                             printf("illegal state %d, %d \n", from_id, to_id);
                             free(request.content);
-                            close(*request.client_fd);
-                            *request.client_fd = -1;
+                            close(fds[i].fd);
+                            fds[i].fd     = -1;
+                            fds[i].events = 0;
+                            sessions[i]   = -1;
                             break;
                         }
                         // printf("from_id %d\n", from_id);
@@ -266,7 +282,9 @@ void event_loop(int server_fd, int *err)
                     // Client disconnected or error, close and clean up
                     printf("oops...\n");
                     close(fds[i].fd);
-                    fds[i].fd = -1;
+                    fds[i].fd     = -1;
+                    fds[i].events = 0;
+                    sessions[i]   = -1;
                     continue;
                 }
             }
@@ -275,16 +293,16 @@ void event_loop(int server_fd, int *err)
 
     printf("syncing meta_user...\n");
     // update user index
-    if(store_int(meta_userDB.db, USER_PK, user_count) != 0)
+    if(store_int(meta_userDB.db, USER_PK, user_index) != 0)
     {
         perror("update user_index");
-        goto cleanup;
     }
     dbm_close(meta_userDB.db);
+    return;
 
 cleanup:
     printf("syncing meta_user in cleanup...\n");
-    store_int(meta_userDB.db, USER_PK, user_count);
+    store_int(meta_userDB.db, USER_PK, user_index);
     dbm_close(meta_userDB.db);
 }
 
@@ -419,7 +437,8 @@ fsm_state_t response_handler(void *args)
 
     // for linux
     close(*request->client_fd);
-    *request->client_fd = -1;
+    // *request->client_fd  = -1;
+    // *request->session_id = -1;
     return END;
 }
 
@@ -441,6 +460,7 @@ fsm_state_t error_handler(void *args)
 
     free(request->content);
     close(*request->client_fd);
-    *request->client_fd = -1;
+    *request->client_fd  = -1;
+    *request->session_id = -1;
     return END;
 }
