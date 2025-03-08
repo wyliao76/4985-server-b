@@ -89,7 +89,7 @@ typedef struct request_t
     void          *content;
     size_t         len;
     int            err;
-    int           *client_fd;
+    struct pollfd *client;
     int           *session_id;
     uint16_t       sender_id;
     uint8_t        type;

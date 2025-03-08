@@ -147,8 +147,10 @@ void event_loop(int server_fd, int *err)
 
     while(running)
     {
-        errno  = 0;
+        errno = 0;
+        printf("polling...\n");
         result = poll(fds, MAX_FDS, TIMEOUT);
+        printf("result %d\n", (int)result);
         if(result == -1)
         {
             if(errno == EINTR)
@@ -236,8 +238,8 @@ void event_loop(int server_fd, int *err)
                     from_id = START;
                     to_id   = REQUEST_HANDLER;
 
-                    request.err       = 0;
-                    request.client_fd = &fds[i].fd;
+                    request.err    = 0;
+                    request.client = &fds[i];
                     // user_id
                     request.session_id   = &sessions[i];
                     request.len          = HEADER_SIZE;
@@ -312,11 +314,11 @@ fsm_state_t request_handler(void *args)
     ssize_t    nread;
 
     request = (request_t *)args;
-    printf("in request_handler %d\n", *request->client_fd);
+    printf("in request_handler %d\n", request->client->fd);
 
     // Read first 6 bytes from fd
     errno = 0;
-    nread = read_fully(*request->client_fd, (char *)request->content, request->len, &request->err);
+    nread = read_fully(request->client->fd, (char *)request->content, request->len, &request->err);
     printf("request_handler nread %d\n", (int)nread);
     if(nread < 0)
     {
@@ -342,7 +344,7 @@ fsm_state_t header_handler(void *args)
 
     request = (request_t *)args;
 
-    printf("in header_handler %d\n", *request->client_fd);
+    printf("in header_handler %d\n", request->client->fd);
 
     ptr = (char *)request->content;
 
@@ -370,7 +372,7 @@ fsm_state_t body_handler(void *args)
     void      *buf;
 
     request = (request_t *)args;
-    printf("in header_handler %d\n", *request->client_fd);
+    printf("in header_handler %d\n", request->client->fd);
 
     printf("len size: %u\n", (uint16_t)(request->len + HEADER_SIZE));
 
@@ -382,7 +384,7 @@ fsm_state_t body_handler(void *args)
     }
     request->content = buf;
 
-    nread = read_fully(*request->client_fd, (char *)request->content + HEADER_SIZE, request->len, &request->err);
+    nread = read_fully(request->client->fd, (char *)request->content + HEADER_SIZE, request->len, &request->err);
     if(nread < 0)
     {
         perror("Read_fully error\n");
@@ -399,7 +401,7 @@ fsm_state_t process_handler(void *args)
 
     request = (request_t *)args;
 
-    printf("in process_handler %d\n", *request->client_fd);
+    printf("in process_handler %d\n", request->client->fd);
 
     result = execute_functions(request, acc_func);
     if(result <= 0)
@@ -423,22 +425,23 @@ fsm_state_t response_handler(void *args)
 
     request = (request_t *)args;
 
-    printf("in response_handler %d\n", *request->client_fd);
+    printf("in response_handler %d\n", request->client->fd);
 
     if(request->type != CHT_Send)
     {
         request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
         printf("response_len: %d\n", (request->response_len));
 
-        write_fully(*request->client_fd, request->response, request->response_len, &request->err);
+        write_fully(request->client->fd, request->response, request->response_len, &request->err);
     }
 
     free(request->content);
 
     // for linux
-    close(*request->client_fd);
-    // *request->client_fd  = -1;
-    // *request->session_id = -1;
+    // close(request->client->fd);
+    // request->client->fd     = -1;
+    // request->client->events = 0;
+    // *request->session_id    = -1;
     return END;
 }
 
@@ -447,7 +450,7 @@ fsm_state_t error_handler(void *args)
     request_t *request;
 
     request = (request_t *)args;
-    printf("in error_handler %d: %d\n", *request->client_fd, (int)request->code);
+    printf("in error_handler %d: %d\n", request->client->fd, (int)request->code);
 
     if(request->type != ACC_Logout)
     {
@@ -456,11 +459,12 @@ fsm_state_t error_handler(void *args)
     }
     printf("response_len: %d\n", (request->response_len));
 
-    write_fully(*request->client_fd, request->response, request->response_len, &request->err);
+    write_fully(request->client->fd, request->response, request->response_len, &request->err);
 
     free(request->content);
-    close(*request->client_fd);
-    *request->client_fd  = -1;
-    *request->session_id = -1;
+    close(request->client->fd);
+    request->client->fd     = -1;
+    request->client->events = 0;
+    *request->session_id    = -1;
     return END;
 }

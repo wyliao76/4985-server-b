@@ -39,7 +39,7 @@ ssize_t account_create(request_t *request)
 
     copy = NULL;
 
-    printf("in account_create %d \n", *request->client_fd);
+    printf("in account_create %d \n", request->client->fd);
 
     if(database_open(&userDB, &request->err) < 0)
     {
@@ -181,7 +181,7 @@ ssize_t account_login(request_t *request)
 
     copy = NULL;
 
-    printf("in account_login %d \n", *request->client_fd);
+    printf("in account_login %d \n", request->client->fd);
 
     memset(&output, 0, sizeof(datum));
 
@@ -294,7 +294,7 @@ error:
 
 ssize_t account_logout(request_t *request)
 {
-    printf("in account_logout %d \n", *request->client_fd);
+    printf("in account_logout %d \n", request->client->fd);
 
     request->response_len = 0;
 
