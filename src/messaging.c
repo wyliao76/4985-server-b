@@ -15,10 +15,13 @@
 #include <unistd.h>
 
 #define TIMEOUT 3000    // 3s
-int user_count = 0;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
-int user_index = 2;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+#define MSG_LEN 8
+int user_count = 0;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+int user_index = 0;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 static ssize_t execute_functions(request_t *request, const funcMapping functions[]);
+static void    count_user(const int *sessions);
+static void    send_user_count(int sm_fd, char *msg, int *err);
 
 static const codeMapping code_map[] = {
     {OK,              ""                                  },
@@ -69,6 +72,38 @@ static ssize_t execute_functions(request_t *request, const funcMapping functions
     return 1;
 }
 
+static void count_user(const int *sessions)
+{
+    // printf("user_index: %d\n", user_index);
+    user_count = 0;
+    for(int i = 1; i < MAX_FDS; i++)
+    {
+        printf("user id: %d\n", sessions[i]);
+        if(sessions[i] != -1)
+        {
+            user_count++;
+        }
+    }
+    printf("user_count: %d\n", user_count);
+}
+
+static void send_user_count(int sm_fd, char *msg, int *err)
+{
+    char *ptr;
+
+    ptr = msg;
+    // move 6 bytes
+    ptr += 1 + 1 + 2 + 1 + 1;
+    memcpy(ptr, (uint16_t *)&user_count, sizeof(uint16_t));
+
+    printf("send_user_count\n");
+    if(write_fully(sm_fd, msg, sizeof(msg), err) < 0)
+    {
+        perror("send_user_count failed");
+        errno = 0;
+    }
+}
+
 void error_response(request_t *request)
 {
     char *ptr;
@@ -112,16 +147,19 @@ void error_response(request_t *request)
     memcpy(ptr, msg, msg_len);
 }
 
-void event_loop(int server_fd, int *err)
+void event_loop(int server_fd, int sm_fd, int *err)
 {
     struct pollfd fds[MAX_FDS];
     // user_ids
-    int     sessions[MAX_FDS];
-    int     client_fd;
-    int     added;
-    char    db_name[] = "meta_user";
-    DBO     meta_userDB;
-    ssize_t result;
+    int      sessions[MAX_FDS];
+    int      client_fd;
+    int      added;
+    char     db_name[] = "meta_user";
+    DBO      meta_userDB;
+    ssize_t  result;
+    char     msg[MSG_LEN];
+    char    *ptr;
+    uint16_t msg_len = htons(0x0004);
 
     meta_userDB.name = db_name;
 
@@ -137,6 +175,15 @@ void event_loop(int server_fd, int *err)
         goto cleanup;
     }
 
+    ptr    = msg;
+    *ptr++ = USR_Count;
+    *ptr++ = ONE;
+    memcpy(ptr, &msg_len, sizeof(msg_len));
+    ptr += sizeof(msg_len);
+    *ptr++ = INTEGER;
+    *ptr++ = sizeof(uint16_t);
+    memcpy(ptr, (uint16_t *)&user_count, sizeof(uint16_t));
+
     fds[0].fd     = server_fd;
     fds[0].events = POLLIN;
     for(int i = 1; i < MAX_FDS; i++)
@@ -150,7 +197,7 @@ void event_loop(int server_fd, int *err)
         errno = 0;
         printf("polling...\n");
         result = poll(fds, MAX_FDS, TIMEOUT);
-        printf("result %d\n", (int)result);
+        // printf("result %d\n", (int)result);
         if(result == -1)
         {
             if(errno == EINTR)
@@ -164,24 +211,14 @@ void event_loop(int server_fd, int *err)
         {
             printf("syncing meta_user...\n");
 
-            // printf("user_index: %d\n", user_index);
-            user_count = 0;
-            for(int i = 1; i < MAX_FDS; i++)
-            {
-                printf("user id: %d\n", sessions[i]);
-                if(sessions[i] != -1)
-                {
-                    user_count++;
-                }
-            }
-            printf("user_count: %d\n", user_count);
-
             // update user index
             if(store_int(meta_userDB.db, USER_PK, user_index) != 0)
             {
                 perror("update user_index");
                 goto cleanup;
             }
+            count_user(sessions);
+            send_user_count(sm_fd, msg, err);
             continue;
         }
 
