@@ -15,16 +15,11 @@
 #define SERVER_ID 0x0000
 #define MAX_CLIENTS 2
 #define MAX_FDS (MAX_CLIENTS + 1)
+#define VERSION 0x02
 
-extern int user_count;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
-extern int user_index;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
-
-typedef enum
-{
-    ONE   = 0x01,
-    TWO   = 0x02,
-    THREE = 0x03,
-} version_t;
+extern uint16_t user_count;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+extern uint32_t msg_count;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+extern int      user_index;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 typedef enum
 {
@@ -113,7 +108,13 @@ typedef struct funcMapping
 
 typedef enum
 {
-    USR_Count = 0x0A
+    MAN_Error      = 0x01,
+    SVR_Diagnostic = 0x0A,
+    USR_Online     = 0x0B,
+    SVR_Online     = 0x0C,
+    SVR_Offline    = 0x0D,
+    SVR_Start      = 0x14,
+    SVR_Stop       = 0x15,
 } sm_type_t;
 
 const char *code_to_string(const code_t *code);

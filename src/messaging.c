@@ -15,11 +15,15 @@
 #include <unistd.h>
 
 #define TIMEOUT 3000    // 3s
-#define MSG_LEN 8
-int user_count = 0;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
-int user_index = 0;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+#define MSG_LEN 14
+// testing
+#define MSG_COUNT 0x00000064
+uint16_t user_count = 0;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+uint32_t msg_count  = MSG_COUNT;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+int      user_index = 0;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 static ssize_t execute_functions(request_t *request, const funcMapping functions[]);
+static void    serialize_sm_diagnostic(char *msg);
 static void    count_user(const int *sessions);
 static void    send_user_count(int sm_fd, char *msg, int *err);
 
@@ -72,6 +76,30 @@ static ssize_t execute_functions(request_t *request, const funcMapping functions
     return 1;
 }
 
+static void serialize_sm_diagnostic(char *msg)
+{
+    char    *ptr;
+    uint16_t msg_payload_len = htons(0x000A);
+
+    ptr = msg;
+
+    *ptr++ = SVR_Diagnostic;
+    *ptr++ = VERSION;
+    memcpy(ptr, &msg_payload_len, sizeof(msg_payload_len));
+    ptr += sizeof(msg_payload_len);
+
+    *ptr++ = INTEGER;
+    *ptr++ = sizeof(user_count);
+    // user_count = htons(user_count);
+    // memcpy(ptr, &user_count, sizeof(user_count));
+    ptr += sizeof(user_count);
+
+    *ptr++ = INTEGER;
+    *ptr++ = sizeof(msg_count);
+    // msg_count = htonl(msg_count);
+    // memcpy(ptr, &msg_count, sizeof(msg_count));
+}
+
 static void count_user(const int *sessions)
 {
     // printf("user_index: %d\n", user_index);
@@ -89,15 +117,37 @@ static void count_user(const int *sessions)
 
 static void send_user_count(int sm_fd, char *msg, int *err)
 {
-    char *ptr;
+    char      *ptr;
+    int        fd;
+    const char log[] = "./text.txt";
 
     ptr = msg;
     // move 6 bytes
     ptr += 1 + 1 + 2 + 1 + 1;
-    memcpy(ptr, (uint16_t *)&user_count, sizeof(uint16_t));
+    user_count = htons(user_count);
+    memcpy(ptr, &user_count, sizeof(user_count));
+    ptr += sizeof(user_count) + 1 + 1;
+
+    msg_count = htonl(msg_count);
+    memcpy(ptr, &msg_count, sizeof(msg_count));
 
     printf("send_user_count\n");
-    if(write_fully(sm_fd, msg, sizeof(msg), err) < 0)
+
+    // testing
+    fd = open(log, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, S_IRUSR | S_IWUSR);
+    if(fd == -1)
+    {
+        perror("open");
+        errno = 0;
+    }
+    else
+    {
+        write_fully(fd, msg, MSG_LEN, err);
+        close(fd);
+    }
+    // testing
+
+    if(write_fully(sm_fd, msg, MSG_LEN, err) < 0)
     {
         perror("send_user_count failed");
         errno = 0;
@@ -117,7 +167,7 @@ void error_response(request_t *request)
     // tag
     *ptr++ = SYS_Error;
     // version
-    *ptr++ = TWO;
+    *ptr++ = VERSION;
 
     // sender_id
     sender_id = htons(sender_id);
@@ -151,15 +201,13 @@ void event_loop(int server_fd, int sm_fd, int *err)
 {
     struct pollfd fds[MAX_FDS];
     // user_ids
-    int      sessions[MAX_FDS];
-    int      client_fd;
-    int      added;
-    char     db_name[] = "meta_user";
-    DBO      meta_userDB;
-    ssize_t  result;
-    char     msg[MSG_LEN];
-    char    *ptr;
-    uint16_t msg_len = htons(0x0004);
+    int     sessions[MAX_FDS];
+    int     client_fd;
+    int     added;
+    char    db_name[] = "meta_user";
+    DBO     meta_userDB;
+    ssize_t result;
+    char    msg[MSG_LEN];
 
     meta_userDB.name = db_name;
 
@@ -175,14 +223,7 @@ void event_loop(int server_fd, int sm_fd, int *err)
         goto cleanup;
     }
 
-    ptr    = msg;
-    *ptr++ = USR_Count;
-    *ptr++ = ONE;
-    memcpy(ptr, &msg_len, sizeof(msg_len));
-    ptr += sizeof(msg_len);
-    *ptr++ = INTEGER;
-    *ptr++ = sizeof(uint16_t);
-    memcpy(ptr, (uint16_t *)&user_count, sizeof(uint16_t));
+    serialize_sm_diagnostic(msg);
 
     fds[0].fd     = server_fd;
     fds[0].events = POLLIN;

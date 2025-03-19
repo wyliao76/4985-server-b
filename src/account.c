@@ -126,7 +126,7 @@ ssize_t account_create(request_t *request)
     // tag
     *ptr++ = SYS_Success;
     // version
-    *ptr++ = TWO;
+    *ptr++ = VERSION;
 
     // sender_id
     sender_id = htons(sender_id);
@@ -256,7 +256,7 @@ ssize_t account_login(request_t *request)
     // tag
     *ptr++ = ACC_Login_Success;
     // version
-    *ptr++ = TWO;
+    *ptr++ = VERSION;
 
     // sender_id
     sender_id = htons(sender_id);
