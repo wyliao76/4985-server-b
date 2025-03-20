@@ -12,6 +12,8 @@ typedef struct args_t
     in_port_t   port;
     const char *sm_addr;
     in_port_t   sm_port;
+    int         backlog;
+    int         sm_fd;
 } args_t;
 
 _Noreturn void usage(const char *binary_name, int exit_code, const char *message);

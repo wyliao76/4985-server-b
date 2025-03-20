@@ -6,6 +6,7 @@
 #include "utils.h"
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <memory.h>
 #include <poll.h>
 #include <stdint.h>
@@ -16,6 +17,7 @@
 
 #define TIMEOUT 3000    // 3s
 #define MSG_LEN 14
+#define MSG_PAYLOAD_LEN 0x000A
 // testing
 #define MSG_COUNT 0x00000064
 uint16_t user_count = 0;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
@@ -79,7 +81,7 @@ static ssize_t execute_functions(request_t *request, const funcMapping functions
 static void serialize_sm_diagnostic(char *msg)
 {
     char    *ptr;
-    uint16_t msg_payload_len = htons(0x000A);
+    uint16_t msg_payload_len = htons(MSG_PAYLOAD_LEN);
 
     ptr = msg;
 
