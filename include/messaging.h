@@ -15,7 +15,7 @@
 #define SERVER_ID 0x0000
 #define MAX_CLIENTS 2
 #define MAX_FDS (MAX_CLIENTS + 1)
-#define VERSION 0x02
+#define VERSION 0x03
 
 extern uint16_t user_count;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 extern uint32_t msg_count;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
