@@ -49,20 +49,20 @@ int main(int argc, char *argv[])
 
     printf("Listening on %s:%d\n", args.addr, args.port);
 
-    // // Start TCP Client
-    // sm_fd = tcp_client(args.sm_addr, args.sm_port, &err);
-    // // if(sm_fd < 0)
-    // // {
-    // //     fprintf(stderr, "main::tcp_server: Failed to create TCP server.\n");
-    // //     return EXIT_FAILURE;
-    // // }
+    // Start TCP Client
+    sm_fd = tcp_client(args.sm_addr, args.sm_port, &err);
+    // if(sm_fd < 0)
+    // {
+    //     fprintf(stderr, "main::tcp_server: Failed to create TCP server.\n");
+    //     return EXIT_FAILURE;
+    // }
 
-    // printf("Connect to server manager at %s:%d\n", args.sm_addr, args.sm_port);
+    printf("Connect to server manager at %s:%d\n", args.sm_addr, args.sm_port);
 
     // Wait for client connections
     errno = 0;
     err   = 0;
-    sm_fd = 0;
+    // sm_fd = 0;
     event_loop(server_fd, sm_fd, &err);
 
     close(sm_fd);
