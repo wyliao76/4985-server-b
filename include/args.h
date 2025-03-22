@@ -5,6 +5,7 @@
 
 #include <arpa/inet.h>
 #include <unistd.h>
+#define ARGC 10
 
 typedef struct args_t
 {
@@ -15,6 +16,7 @@ typedef struct args_t
     int         backlog;
     int        *sm_fd;
     int        *err;
+    char       *envp[ARGC];
 } args_t;
 
 _Noreturn void usage(const char *binary_name, int exit_code, const char *message);

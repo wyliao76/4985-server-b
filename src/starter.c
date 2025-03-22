@@ -1,3 +1,4 @@
+#include "starter.h"
 #include "args.h"
 #include "io.h"
 #include "messaging.h"
@@ -10,76 +11,261 @@
 #include <string.h>
 #include <sys/wait.h>
 
+#define SLEEP 3         // 3s
 #define TIMEOUT 3000    // 3s
 #define INADDRESS "0.0.0.0"
-#define OUTADDRESS "127.0.0.1"
-// #define BACKLOG 5
+#define OUTADDRESS "0.0.0.0"
 #define PORT "8081"
 #define SM_PORT "9000"
 #define SM_HEADER_SIZE 4
+#define BUF_SIZE 50
 
-// _Noreturn static void launch_server(char *argv[])
-// {
-//     pid_t pid;
-//     int   status;
+static const struct fsm_transition transitions[] = {
+    {START,           CONNECT_SM,      connect_sm     },
+    {CONNECT_SM,      PARSE_ENVP,      parse_envp     },
+    {PARSE_ENVP,      WAIT_FOR_START,  wait_for_start },
+    {WAIT_FOR_START,  LAUNCH_SERVER,   launch_server  },
+    {LAUNCH_SERVER,   CLEANUP_HANDLER, cleanup_handler},
+    {CLEANUP_HANDLER, END,             NULL           },
+    {CONNECT_SM,      CLEANUP_HANDLER, cleanup_handler},
+    {PARSE_ENVP,      CLEANUP_HANDLER, cleanup_handler},
+    {WAIT_FOR_START,  CLEANUP_HANDLER, cleanup_handler},
+};
 
-//     pid = fork();
-//     if(pid < 0)
-//     {
-//         perror("main::fork");
-//         exit(EXIT_FAILURE);
-//     }
-
-//     if(pid == 0)
-//     {
-//         // char *new_env[] = {"MY_VAR=HelloWorld", NULL};
-//         // char *argv[] = {"./build/server", NULL};
-//         // execv(argv[0], argv);
-//         execv("./build/server", argv);
-
-//         // _exit if fails
-//         perror("execv failed");
-//         _exit(EXIT_FAILURE);
-//     }
-
-//     if(waitpid(pid, &status, 0) == -1)
-//     {
-//         perror("Error waiting for child process");
-//         exit(EXIT_FAILURE);
-//     }
-//     exit(EXIT_SUCCESS);
-// }
-
-static void connect_sm(args_t *args)
+fsm_state_t connect_sm(void *args)
 {
+    args_t *sm_args = (args_t *)args;
     while(running)
     {
         // Start TCP Client
         printf("Connecting to server manager...\n");
-        *args->sm_fd = tcp_client(args->sm_addr, args->sm_port, args->err);
-        printf("sm_fd: %d\n", *args->sm_fd);
-        if(*args->sm_fd > 0)
+        *sm_args->sm_fd = tcp_client(sm_args->sm_addr, sm_args->sm_port, sm_args->err);
+        printf("sm_fd: %d\n", *sm_args->sm_fd);
+        if(*sm_args->sm_fd > 0)
         {
-            printf("Connect to server manager at %s:%d\n", args->sm_addr, args->sm_port);
-            break;
+            printf("Connect to server manager at %s:%d\n", sm_args->sm_addr, sm_args->sm_port);
+            return PARSE_ENVP;
         }
         perror("Failed to create TCP client.");
-        errno      = 0;
-        *args->err = 0;
-        sleep(3);
+        errno         = 0;
+        *sm_args->err = 0;
+        sleep(SLEEP);
     }
+    return CLEANUP_HANDLER;
+}
+
+fsm_state_t wait_for_start(void *args)
+{
+    struct pollfd fds[1];
+    char          buf[SM_HEADER_SIZE];
+
+    args_t *sm_args = (args_t *)args;
+    memset(buf, 0, SM_HEADER_SIZE);
+
+    fds[0].fd     = *sm_args->sm_fd;
+    fds[0].events = POLLIN;
+
+    while(running)
+    {
+        printf("polling\n");
+        if(poll(fds, 1, -1) == -1)
+        {
+            perror("Poll error");
+            return CLEANUP_HANDLER;
+        }
+
+        if(fds[0].revents & POLLIN)
+        {
+            printf("reading from sm\n");
+            if(read_fully(fds[0].fd, buf, SM_HEADER_SIZE, sm_args->err) < 0)
+            {
+                perror("read_fully error");
+                errno = 0;
+                continue;
+            }
+
+            // print
+            for(int i = 0; i < 4; i++)
+            {
+                printf("%d ", buf[i]);
+            }
+            printf("\n");
+
+            if(buf[0] == SVR_Start)
+            {
+                printf("Server start requested %d\n", buf[0]);
+                return LAUNCH_SERVER;
+            }
+        }
+        if(fds[0].revents & (POLLHUP | POLLERR))
+        {
+            printf("sever manager exit\n");
+            return CLEANUP_HANDLER;
+        }
+    }
+    return CLEANUP_HANDLER;
+}
+
+fsm_state_t parse_envp(void *args)
+{
+    args_t *sm_args = (args_t *)args;
+    char    buf[BUF_SIZE];
+    int     index;
+
+    // Anonymous struct + inline initialization
+    struct
+    {
+        const char *key;
+        const void *value;
+        int         is_string;    // 1 for string, 0 for integer
+    } const env_vars[] = {
+        {"ADDR=",    sm_args->addr,     1},
+        {"PORT=",    &sm_args->port,    0},
+        {"SM_ADDR=", sm_args->sm_addr,  1},
+        {"SM_PORT=", &sm_args->sm_port, 0},
+        {"SM_FD=",   sm_args->sm_fd,    2},
+        {NULL,       NULL,              0}  // End marker
+    };
+
+    index = 0;
+
+    for(int i = 0; env_vars[i].key != NULL; i++)
+    {
+        if(env_vars[i].is_string == 1)
+        {
+            snprintf(buf, BUF_SIZE, "%s%s", env_vars[i].key, (const char *)env_vars[i].value);
+        }
+        else if(env_vars[i].is_string == 2)
+        {
+            snprintf(buf, BUF_SIZE, "%s%d", env_vars[i].key, *(const int *)env_vars[i].value);
+        }
+        else
+        {
+            snprintf(buf, BUF_SIZE, "%s%u", env_vars[i].key, *(const in_port_t *)env_vars[i].value);
+        }
+
+        sm_args->envp[index] = strdup(buf);
+        if(sm_args->envp[index] == NULL)
+        {
+            perror("strdup failed");
+            return CLEANUP_HANDLER;
+        }
+        memset(buf, 0, BUF_SIZE);
+        index++;
+    }
+    sm_args->envp[index] = NULL;
+
+    for(int i = 0; sm_args->envp[i] != NULL; i++)
+    {
+        printf("%s\n", sm_args->envp[i]);
+    }
+
+    return WAIT_FOR_START;
+}
+
+fsm_state_t launch_server(void *args)
+{
+    int           status;
+    pid_t         pid;
+    char          buf[SM_HEADER_SIZE];
+    struct pollfd fds[1];
+
+    args_t *sm_args = (args_t *)args;
+    memset(buf, 0, SM_HEADER_SIZE);
+
+    pid = fork();
+
+    if(pid < 0)
+    {
+        perror("main::fork");
+        return CLEANUP_HANDLER;
+    }
+
+    if(pid == 0)
+    {
+        execve("./build/server", NULL, sm_args->envp);
+
+        // _exit if fails
+        perror("execv failed");
+        _exit(EXIT_FAILURE);
+    }
+
+    fds[0].fd     = *sm_args->sm_fd;
+    fds[0].events = POLLIN;
+
+    while(running)
+    {
+        ssize_t result;
+
+        errno = 0;
+        printf("polling...\n");
+        result = poll(fds, 1, TIMEOUT);
+        if(result == -1)
+        {
+            perror("Poll error");
+            return CLEANUP_HANDLER;
+        }
+        if(result == 0)
+        {
+            printf("check child\n");
+            if(waitpid(pid, &status, WNOHANG) > 0)
+            {
+                printf("Child exited, status = %d\n", WEXITSTATUS(status));
+                return CLEANUP_HANDLER;
+            }
+        }
+        if(fds[0].revents & POLLIN)
+        {
+            if(read_fully(fds[0].fd, buf, SM_HEADER_SIZE, sm_args->err) < 0)
+            {
+                perror("read_fully error");
+                errno = 0;
+                continue;
+            }
+            printf("Received byte: %d\n", buf[0]);
+            if(buf[0] == SVR_Stop)
+            {
+                printf("Killing child process...\n");
+                kill(pid, SIGINT);
+                waitpid(pid, &status, 0);    // Ensure child cleanup
+                return CLEANUP_HANDLER;
+            }
+        }
+        if(fds[0].revents & (POLLHUP | POLLERR))
+        {
+            printf("server manager exit\n");
+            printf("Killing child process...\n");
+            kill(pid, SIGINT);
+            waitpid(pid, &status, 0);    // Ensure child cleanup
+            return CLEANUP_HANDLER;
+        }
+    }
+    kill(pid, SIGINT);
+    waitpid(pid, &status, 0);    // Ensure child cleanup
+    return CLEANUP_HANDLER;
+}
+
+fsm_state_t cleanup_handler(void *args)
+{
+    const args_t *sm_args = (args_t *)args;
+
+    close(*sm_args->sm_fd);
+    for(int i = 0; i < ARGC; i++)
+    {
+        free(sm_args->envp[i]);
+    }
+
+    return END;
 }
 
 int main(int argc, char *argv[])
 {
-    int           err;
-    args_t        args;
-    int           status;
-    char          buf[SM_HEADER_SIZE];
-    pid_t         pid;
-    int           sm_fd;
-    struct pollfd fds[1];
-    ssize_t       result;
+    int            err;
+    args_t         args;
+    int            sm_fd;
+    fsm_state_func perform;
+    fsm_state_t    from_id;
+    fsm_state_t    to_id;
 
     setup_signal();
 
@@ -96,122 +282,24 @@ int main(int argc, char *argv[])
 
     get_arguments(&args, argc, argv);
 
-    connect_sm(&args);
+    from_id = START;
+    to_id   = CONNECT_SM;
 
-    fds[0].fd     = *args.sm_fd;
-    fds[0].events = POLLIN;
-
-    while(running)
+    do
     {
-        printf("polling\n");
-        result = poll(fds, 1, -1);
-        if(result == -1)
+        perform = fsm_transition(from_id, to_id, transitions, sizeof(transitions));
+        if(perform == NULL)
         {
-            perror("Poll error");
-            // goto cleanup;
-            exit(EXIT_FAILURE);
-        }
-
-        if(fds[0].revents & POLLIN)
-        {
-            printf("reading from sm\n");
-            memset(buf, 0, SM_HEADER_SIZE);
-            if(read_fully(*args.sm_fd, buf, SM_HEADER_SIZE, &err) < 0)
+            printf("illegal state %d, %d \n", from_id, to_id);
+            close(sm_fd);
+            for(int i = 0; i < ARGC; i++)
             {
-                perror("read_fully error");
-                errno = 0;
-                continue;
+                free(args.envp[i]);
             }
-            for(int i = 0; i < 4; i++)
-            {
-                printf("%d ", buf[i]);
-            }
-            printf("\n");
-            if(buf[0] == SVR_Start)
-            {
-                printf("Server start requested %d\n", buf[0]);
-                break;
-            }
-        }
-        if(fds[0].revents & (POLLHUP | POLLERR))
-        {
-            printf("sever manager exit\n");
-            exit(EXIT_SUCCESS);
-        }
-    }
-
-    pid = fork();
-
-    if(pid < 0)
-    {
-        perror("main::fork");
-        exit(EXIT_FAILURE);
-    }
-
-    if(pid == 0)
-    {
-        // char *new_env[] = {"MY_VAR=HelloWorld", NULL};
-        // char *argv[] = {"./build/server", NULL};
-        // execv(argv[0], argv);
-        execv("./build/server", argv);
-
-        // _exit if fails
-        perror("execv failed");
-        _exit(EXIT_FAILURE);
-    }
-
-    while(running)
-    {
-        errno = 0;
-        printf("polling...\n");
-        result = poll(fds, 1, TIMEOUT);
-        if(result == -1)
-        {
-            perror("Poll error");
-            // goto cleanup;
             break;
         }
-        if(result == 0)
-        {
-            printf("check child\n");
-            if(waitpid(pid, &status, WNOHANG) > 0)
-            {
-                printf("Child exited, status = %d\n", WEXITSTATUS(status));
-                break;
-            }
-        }
-        if(fds[0].revents & POLLIN)
-        {
-            memset(buf, 0, SM_HEADER_SIZE);
-            if(read_fully(*args.sm_fd, buf, SM_HEADER_SIZE, &err) < 0)
-            {
-                perror("read_fully error");
-                errno = 0;
-                continue;
-            }
-            printf("Received byte: %d\n", buf[0]);
-            if(buf[0] == SVR_Stop)
-            {
-                printf("Killing child process...\n");
-                kill(pid, SIGINT);
-                waitpid(pid, &status, 0);    // Ensure child cleanup
-                break;
-            }
-        }
-        if(fds[0].revents & (POLLHUP | POLLERR))
-        {
-            printf("server manager exit\n");
-            printf("Killing child process...\n");
-            kill(pid, SIGINT);
-            waitpid(pid, &status, 0);    // Ensure child cleanup
-            break;
-        }
-    }
-
-    kill(pid, SIGINT);
-    waitpid(pid, &status, 0);    // Ensure child cleanup
-
-    // launch_server(argv);
-
-    close(*args.sm_fd);
+        // printf("from_id %d\n", from_id);
+        from_id = to_id;
+        to_id   = perform(&args);
+    } while(to_id != END);
 }
