@@ -16,8 +16,6 @@
 #include <unistd.h>
 
 #define TIMEOUT 3000    // 3s
-#define MSG_LEN 14
-#define MSG_PAYLOAD_LEN 0x000A
 // testing
 #define MSG_COUNT 0x00000064
 uint16_t user_count = 0;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
@@ -125,13 +123,14 @@ static void send_user_count(int sm_fd, char *msg, int *err)
 
     ptr = msg;
     // move 6 bytes
-    ptr += 1 + 1 + 2 + 1 + 1;
+    ptr += SM_HEADER_SIZE + 1 + 1;
     user_count = htons(user_count);
     memcpy(ptr, &user_count, sizeof(user_count));
     ptr += sizeof(user_count) + 1 + 1;
 
     msg_count = htonl(msg_count);
     memcpy(ptr, &msg_count, sizeof(msg_count));
+    msg_count = ntohl(msg_count);
 
     printf("send_user_count\n");
 

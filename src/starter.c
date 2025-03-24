@@ -17,8 +17,6 @@
 #define OUTADDRESS "0.0.0.0"
 #define PORT "8081"
 #define SM_PORT "9000"
-#define SM_HEADER_SIZE 4
-#define BUF_SIZE 50
 
 static const struct fsm_transition transitions[] = {
     {START,           CONNECT_SM,      connect_sm     },
@@ -57,17 +55,17 @@ fsm_state_t connect_sm(void *args)
 fsm_state_t wait_for_start(void *args)
 {
     struct pollfd fds[1];
-    char          buf[SM_HEADER_SIZE];
+    ssize_t nread;
 
     args_t *sm_args = (args_t *)args;
-    memset(buf, 0, SM_HEADER_SIZE);
+
+    memset(sm_args->buf, 0, BUF_SIZE);
 
     fds[0].fd     = *sm_args->sm_fd;
     fds[0].events = POLLIN;
 
     while(running)
     {
-        printf("polling\n");
         if(poll(fds, 1, -1) == -1)
         {
             perror("Poll error");
@@ -76,8 +74,8 @@ fsm_state_t wait_for_start(void *args)
 
         if(fds[0].revents & POLLIN)
         {
-            printf("reading from sm\n");
-            if(read_fully(fds[0].fd, buf, SM_HEADER_SIZE, sm_args->err) < 0)
+            nread = read_fully(fds[0].fd, sm_args->buf, SM_HEADER_SIZE, sm_args->err);
+            if(nread < 0 || nread < SM_HEADER_SIZE)
             {
                 perror("read_fully error");
                 errno = 0;
@@ -85,15 +83,15 @@ fsm_state_t wait_for_start(void *args)
             }
 
             // print
-            for(int i = 0; i < 4; i++)
+            for(int i = 0; i < SM_HEADER_SIZE; i++)
             {
-                printf("%d ", buf[i]);
+                printf("%d ", sm_args->buf[i]);
             }
             printf("\n");
 
-            if(buf[0] == SVR_Start)
+            if(sm_args->buf[0] == SVR_Start)
             {
-                printf("Server start requested %d\n", buf[0]);
+                printf("Server start requested\n");
                 return LAUNCH_SERVER;
             }
         }
@@ -108,9 +106,9 @@ fsm_state_t wait_for_start(void *args)
 
 fsm_state_t parse_envp(void *args)
 {
-    args_t *sm_args = (args_t *)args;
-    char    buf[BUF_SIZE];
-    int     index;
+    args_t     *sm_args = (args_t *)args;
+    int         index;
+    const char *program_name = "./build/server";
 
     // Anonymous struct + inline initialization
     struct
@@ -133,27 +131,35 @@ fsm_state_t parse_envp(void *args)
     {
         if(env_vars[i].is_string == 1)
         {
-            snprintf(buf, BUF_SIZE, "%s%s", env_vars[i].key, (const char *)env_vars[i].value);
+            snprintf(sm_args->buf, BUF_SIZE, "%s%s", env_vars[i].key, (const char *)env_vars[i].value);
         }
         else if(env_vars[i].is_string == 2)
         {
-            snprintf(buf, BUF_SIZE, "%s%d", env_vars[i].key, *(const int *)env_vars[i].value);
+            snprintf(sm_args->buf, BUF_SIZE, "%s%d", env_vars[i].key, *(const int *)env_vars[i].value);
         }
         else
         {
-            snprintf(buf, BUF_SIZE, "%s%u", env_vars[i].key, *(const in_port_t *)env_vars[i].value);
+            snprintf(sm_args->buf, BUF_SIZE, "%s%u", env_vars[i].key, *(const in_port_t *)env_vars[i].value);
         }
 
-        sm_args->envp[index] = strdup(buf);
+        sm_args->envp[index] = strdup(sm_args->buf);
         if(sm_args->envp[index] == NULL)
         {
             perror("strdup failed");
             return CLEANUP_HANDLER;
         }
-        memset(buf, 0, BUF_SIZE);
+        memset(sm_args->buf, 0, BUF_SIZE);
         index++;
     }
     sm_args->envp[index] = NULL;
+
+    sm_args->argv[0] = strdup(program_name);
+    if(sm_args->argv[0] == NULL)
+    {
+        perror("strdup failed");
+        return CLEANUP_HANDLER;
+    }
+    sm_args->argv[1] = NULL;
 
     for(int i = 0; sm_args->envp[i] != NULL; i++)
     {
@@ -167,27 +173,40 @@ fsm_state_t launch_server(void *args)
 {
     int           status;
     pid_t         pid;
-    char          buf[SM_HEADER_SIZE];
     struct pollfd fds[1];
+    uint16_t      payload_len = htons(0x0000);
+    char         *ptr;
 
     args_t *sm_args = (args_t *)args;
-    memset(buf, 0, SM_HEADER_SIZE);
 
     pid = fork();
 
     if(pid < 0)
     {
         perror("main::fork");
+        *sm_args->err = errno;
         return CLEANUP_HANDLER;
     }
 
     if(pid == 0)
     {
-        execve("./build/server", NULL, sm_args->envp);
+        execve(sm_args->argv[0], sm_args->argv, sm_args->envp);
 
         // _exit if fails
         perror("execv failed");
         _exit(EXIT_FAILURE);
+    }
+
+    memset((void *)sm_args->buf, 0, SM_HEADER_SIZE);
+
+    ptr    = sm_args->buf;
+    *ptr++ = SVR_Online;
+    *ptr++ = VERSION;
+    memcpy(ptr, &payload_len, sizeof(payload_len));
+
+    if(write_fully(*sm_args->sm_fd, sm_args->buf, SM_HEADER_SIZE, sm_args->err) < 0)
+    {
+        return CLEANUP_HANDLER;
     }
 
     fds[0].fd     = *sm_args->sm_fd;
@@ -197,12 +216,19 @@ fsm_state_t launch_server(void *args)
     {
         ssize_t result;
 
-        errno = 0;
-        printf("polling...\n");
+        errno  = 0;
         result = poll(fds, 1, TIMEOUT);
         if(result == -1)
         {
             perror("Poll error");
+            if(errno == EINTR)
+            {
+                errno = 0;
+            }
+            else
+            {
+                *sm_args->err = errno;
+            }
             return CLEANUP_HANDLER;
         }
         if(result == 0)
@@ -216,16 +242,23 @@ fsm_state_t launch_server(void *args)
         }
         if(fds[0].revents & POLLIN)
         {
-            if(read_fully(fds[0].fd, buf, SM_HEADER_SIZE, sm_args->err) < 0)
+            memset(sm_args->buf, 0, SM_HEADER_SIZE);
+
+            if(read_fully(fds[0].fd, sm_args->buf, SM_HEADER_SIZE, sm_args->err) < 0)
             {
                 perror("read_fully error");
-                errno = 0;
                 continue;
             }
-            printf("Received byte: %d\n", buf[0]);
-            if(buf[0] == SVR_Stop)
+
+            if(sm_args->buf[0] == SVR_Stop)
             {
                 printf("Killing child process...\n");
+                // print
+                for(int i = 0; i < SM_HEADER_SIZE; i++)
+                {
+                    printf("%d ", sm_args->buf[i]);
+                }
+                printf("\n");
                 kill(pid, SIGINT);
                 waitpid(pid, &status, 0);    // Ensure child cleanup
                 return CLEANUP_HANDLER;
@@ -235,6 +268,12 @@ fsm_state_t launch_server(void *args)
         {
             printf("server manager exit\n");
             printf("Killing child process...\n");
+            // print
+            for(int i = 0; i < SM_HEADER_SIZE; i++)
+            {
+                printf("%d ", sm_args->buf[i]);
+            }
+            printf("\n");
             kill(pid, SIGINT);
             waitpid(pid, &status, 0);    // Ensure child cleanup
             return CLEANUP_HANDLER;
@@ -247,12 +286,27 @@ fsm_state_t launch_server(void *args)
 
 fsm_state_t cleanup_handler(void *args)
 {
-    const args_t *sm_args = (args_t *)args;
+    args_t  *sm_args = (args_t *)args;
+    char    *ptr;
+    uint16_t payload_len = htons(0x0000);
+
+    memset(sm_args->buf, 0, SM_HEADER_SIZE);
+
+    ptr    = sm_args->buf;
+    *ptr++ = SVR_Offline;
+    *ptr++ = VERSION;
+    memcpy(ptr, &payload_len, sizeof(payload_len));
+
+    write_fully(*sm_args->sm_fd, sm_args->buf, SM_HEADER_SIZE, sm_args->err);
 
     close(*sm_args->sm_fd);
-    for(int i = 0; i < ARGC; i++)
+    for(int i = 0; sm_args->envp[i] != NULL; i++)
     {
         free(sm_args->envp[i]);
+    }
+    for(int i = 0; sm_args->argv[i] != NULL; i++)
+    {
+        free(sm_args->argv[i]);
     }
 
     return END;
@@ -292,14 +346,30 @@ int main(int argc, char *argv[])
         {
             printf("illegal state %d, %d \n", from_id, to_id);
             close(sm_fd);
-            for(int i = 0; i < ARGC; i++)
+            for(int i = 0; args.envp[i] != NULL; i++)
             {
                 free(args.envp[i]);
             }
-            break;
+            for(int i = 0; args.argv[i] != NULL; i++)
+            {
+                free(args.argv[i]);
+            }
+            goto error;
         }
         // printf("from_id %d\n", from_id);
         from_id = to_id;
         to_id   = perform(&args);
     } while(to_id != END);
+
+    printf("Starter shutting down...\n");
+
+    if(err != 0)
+    {
+        perror("There was an error...");
+        goto error;
+    }
+    return EXIT_SUCCESS;
+
+error:
+    return EXIT_FAILURE;
 }

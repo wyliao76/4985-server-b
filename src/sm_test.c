@@ -19,8 +19,9 @@ int main(void)
     args_t        args;
     int           server_fd;
     int           client_fd;
-    char          start[4] = {SVR_Start, VERSION, 0x00, 0x00};
-    char          stop[4]  = {SVR_Stop, VERSION, 0x00, 0x00};
+    char          start[SM_HEADER_SIZE] = {SVR_Start, VERSION, 0x00, 0x00};
+    char          stop[SM_HEADER_SIZE]  = {SVR_Stop, VERSION, 0x00, 0x00};
+    char          buf[MSG_LEN];
     int           err;
     struct pollfd fds[2];
 
@@ -51,8 +52,13 @@ int main(void)
     {
         if(poll(fds, 2, -1) < 0)
         {
+            if(errno == EINTR)
+            {
+                errno = 0;
+                goto done;
+            }
             perror("Poll error");
-            exit(EXIT_FAILURE);
+            goto cleanup;
         }
         if(fds[0].revents & POLLIN)
         {
@@ -62,7 +68,8 @@ int main(void)
             {
                 if(errno == EINTR)
                 {
-                    goto cleanup;
+                    errno = 0;
+                    goto done;
                 }
                 perror("Accept failed");
                 continue;
@@ -70,8 +77,50 @@ int main(void)
             fds[1].fd     = client_fd;
             fds[1].events = POLLIN;
 
-            write_fully(client_fd, start, 4, &err);
+            write_fully(client_fd, start, SM_HEADER_SIZE, &err);
             printf("starting the server...\n");
+        }
+        if(fds[1].revents & POLLIN)
+        {
+            memset(buf, 0, MSG_LEN);
+            if(read_fully(fds[1].fd, buf, SM_HEADER_SIZE, &err) < 0)
+            {
+                perror("read_fully error");
+                continue;
+            }
+            if(buf[0] == SVR_Diagnostic)
+            {
+                if(read_fully(fds[1].fd, buf + SM_HEADER_SIZE, MSG_PAYLOAD_LEN, &err) < 0)
+                {
+                    perror("read_fully error");
+                    continue;
+                }
+                // print
+                for(int i = 0; i < MSG_LEN; i++)
+                {
+                    printf("%d ", buf[i]);
+                }
+                printf("\n");
+                continue;
+            }
+            if(buf[0] == SVR_Online)
+            {
+                printf("server online\n");
+            }
+            if(buf[0] == SVR_Offline)
+            {
+                printf("server offline\n");
+                close(fds[1].fd);
+                fds[1].fd     = -1;
+                fds[1].events = 0;
+            }
+            // print
+            for(int i = 0; i < SM_HEADER_SIZE; i++)
+            {
+                printf("%d ", buf[i]);
+            }
+            printf("\n");
+            continue;
         }
         if(fds[1].revents & (POLLHUP | POLLERR))
         {
@@ -79,10 +128,11 @@ int main(void)
             return EXIT_SUCCESS;
         }
     }
-    write_fully(client_fd, stop, 4, &err);
-
+done:
+    write_fully(client_fd, stop, SM_HEADER_SIZE, &err);
     return EXIT_SUCCESS;
 
 cleanup:
+    write_fully(client_fd, stop, SM_HEADER_SIZE, &err);
     return EXIT_FAILURE;
 }

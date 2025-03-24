@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 #define INADDRESS "0.0.0.0"
 #define OUTADDRESS "127.0.0.1"
@@ -24,6 +25,11 @@ static int convert(const char *str)
     long  sm_fd;
 
     errno = 0;
+    if(!str)
+    {
+        return -1;
+    }
+
     sm_fd = strtol(str, &endptr, BASE_TEN);
 
     // Check for conversion errors
@@ -50,8 +56,6 @@ static int convert(const char *str)
     printf("sm_fd: %ld\n", sm_fd);
     return (int)sm_fd;
 }
-
-extern char **environ;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 int main(int argc, char *argv[])
 {

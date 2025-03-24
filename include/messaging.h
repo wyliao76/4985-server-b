@@ -16,6 +16,9 @@
 #define MAX_CLIENTS 2
 #define MAX_FDS (MAX_CLIENTS + 1)
 #define VERSION 0x03
+#define SM_HEADER_SIZE 4
+#define MSG_LEN 14
+#define MSG_PAYLOAD_LEN 0x000A
 
 extern uint16_t user_count;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 extern uint32_t msg_count;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)

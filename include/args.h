@@ -5,6 +5,7 @@
 
 #include <arpa/inet.h>
 #include <unistd.h>
+#define BUF_SIZE 50
 #define ARGC 10
 
 typedef struct args_t
@@ -13,9 +14,10 @@ typedef struct args_t
     in_port_t   port;
     const char *sm_addr;
     in_port_t   sm_port;
-    int         backlog;
     int        *sm_fd;
     int        *err;
+    char        buf[BUF_SIZE];
+    char       *argv[2];
     char       *envp[ARGC];
 } args_t;
 
