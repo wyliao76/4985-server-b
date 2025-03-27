@@ -8,10 +8,11 @@
 #define PRINT_DEBUG(fmt, ...) do { if (verbose >= 2) printf(fmt, __VA_ARGS__); } while (0)
 // clang-format on
 
-extern volatile sig_atomic_t running;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+extern volatile sig_atomic_t running;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+extern volatile sig_atomic_t server_switch;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 void nfree(void **ptr);
 
-void setup_signal(void);
+void setup_signal(int handle_sigtstp);
 
 #endif

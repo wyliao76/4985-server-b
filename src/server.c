@@ -76,7 +76,7 @@ int main(int argc, char *argv[], char *envp[])
         envp++;
     }
 
-    setup_signal();
+    setup_signal(0);
 
     printf("Server launching... (press Ctrl+C to interrupt)\n");
 

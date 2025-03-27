@@ -104,8 +104,10 @@ fsm_state_t wait_for_start(void *args)
         }
         if(fds[0].revents & (POLLHUP | POLLERR))
         {
-            PRINT_VERBOSE("%s\n", "sever manager exit");
-            return CLEANUP_HANDLER;
+            PRINT_VERBOSE("%s\n", "server manager hung up");
+            close(fds[0].fd);
+            sleep(SLEEP);
+            return CONNECT_SM;
         }
     }
     return CLEANUP_HANDLER;
@@ -339,7 +341,7 @@ int main(int argc, char *argv[])
     fsm_state_t    from_id;
     fsm_state_t    to_id;
 
-    setup_signal();
+    setup_signal(0);
 
     printf("Starter launching... (press Ctrl+C to interrupt)\n");
 

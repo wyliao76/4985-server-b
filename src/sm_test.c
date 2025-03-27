@@ -23,9 +23,10 @@ int main(void)
     char          stop[SM_HEADER_SIZE]  = {SVR_Stop, VERSION, 0x00, 0x00};
     char          buf[MSG_LEN];
     int           err;
+    int           added;
     struct pollfd fds[2];
 
-    setup_signal();
+    setup_signal(1);
 
     printf("Server manager launching... (press Ctrl+C to interrupt)\n");
 
@@ -44,9 +45,13 @@ int main(void)
 
     printf("Listening on %s:%d\n", args.addr, args.port);
 
+    for(int i = 1; i < 2; i++)
+    {
+        fds[i].fd = -1;
+    }
+
     fds[0].fd     = server_fd;
     fds[0].events = POLLIN;
-    client_fd     = 0;
 
     while(running)
     {
@@ -55,11 +60,23 @@ int main(void)
             if(errno == EINTR)
             {
                 errno = 0;
-                goto done;
+
+                if(server_switch == 0)
+                {
+                    printf("starting the server...\n");
+                    write_fully(fds[1].fd, start, SM_HEADER_SIZE, &err);
+                }
+                else if(server_switch == 1)
+                {
+                    printf("stopping the server...\n");
+                    write_fully(fds[1].fd, stop, SM_HEADER_SIZE, &err);
+                }
+                continue;
             }
             perror("Poll error");
             goto cleanup;
         }
+
         if(fds[0].revents & POLLIN)
         {
             client_fd = accept(server_fd, NULL, 0);
@@ -74,12 +91,30 @@ int main(void)
                 perror("Accept failed");
                 continue;
             }
-            fds[1].fd     = client_fd;
-            fds[1].events = POLLIN;
+            // Add new client to poll list
+            added = 0;
+            for(int i = 1; i < 2; i++)
+            {
+                if(fds[i].fd == -1)
+                {
+                    fds[i].fd     = client_fd;
+                    fds[i].events = POLLIN;
+                    added         = 1;
+                    break;
+                }
+            }
+            if(!added)
+            {
+                char too_many[] = "Too many clients, rejecting connection\n";
 
-            write_fully(client_fd, start, SM_HEADER_SIZE, &err);
-            printf("starting the server...\n");
+                printf("%s", too_many);
+                write_fully(client_fd, &too_many, (ssize_t)strlen(too_many), &err);
+
+                close(client_fd);
+                continue;
+            }
         }
+
         if(fds[1].revents & POLLIN)
         {
             memset(buf, 0, MSG_LEN);
@@ -129,10 +164,8 @@ int main(void)
         }
     }
 done:
-    write_fully(client_fd, stop, SM_HEADER_SIZE, &err);
     return EXIT_SUCCESS;
 
 cleanup:
-    write_fully(client_fd, stop, SM_HEADER_SIZE, &err);
     return EXIT_FAILURE;
 }
