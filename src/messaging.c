@@ -106,7 +106,7 @@ static void count_user(const int *sessions)
     user_count = 0;
     for(int i = 1; i < MAX_FDS; i++)
     {
-        printf("user id: %d\n", sessions[i]);
+        // printf("user id: %d\n", sessions[i]);
         if(sessions[i] != -1)
         {
             user_count++;

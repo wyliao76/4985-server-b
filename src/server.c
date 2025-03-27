@@ -57,7 +57,7 @@ static int convert(const char *str)
     return (int)sm_fd;
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char *argv[], char *envp[])
 {
     int retval;
     int server_fd;
@@ -69,12 +69,11 @@ int main(int argc, char *argv[])
     const char *port    = getenv("PORT");
     const char *sm_addr = getenv("SM_ADDR");
     const char *sm_port = getenv("SM_PORT");
-    char      **env     = environ;
 
-    while(*env)
+    while(*envp)
     {
-        printf("%s\n", *env);
-        env++;
+        printf("%s\n", *envp);
+        envp++;
     }
 
     setup_signal();

@@ -54,6 +54,9 @@ ssize_t chat_broadcast(request_t *request)
     printf("response_len: %d\n", request->response_len);
     memcpy(request->response, request->content, request->response_len);
 
+    msg_count++;
+    printf("msg_count: %d\n", (int)msg_count);
+
     for(int i = 1; i < MAX_FDS; i++)
     {
         if(request->fds[i].fd != -1)

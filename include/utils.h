@@ -3,6 +3,11 @@
 
 #include <signal.h>
 
+// clang-format off
+#define PRINT_VERBOSE(fmt, ...) do { if (verbose >= 1) printf(fmt, __VA_ARGS__); } while (0)
+#define PRINT_DEBUG(fmt, ...) do { if (verbose >= 2) printf(fmt, __VA_ARGS__); } while (0)
+// clang-format on
+
 extern volatile sig_atomic_t running;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 void nfree(void **ptr);

@@ -13,7 +13,7 @@
 #define HEADER_SIZE 6
 #define RESPONSE_SIZE 256
 #define SERVER_ID 0x0000
-#define MAX_CLIENTS 2
+#define MAX_CLIENTS 64
 #define MAX_FDS (MAX_CLIENTS + 1)
 #define VERSION 0x03
 #define SM_HEADER_SIZE 4

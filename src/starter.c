@@ -28,6 +28,8 @@ static const struct fsm_transition transitions[] = {
     {CONNECT_SM,      CLEANUP_HANDLER, cleanup_handler},
     {PARSE_ENVP,      CLEANUP_HANDLER, cleanup_handler},
     {WAIT_FOR_START,  CLEANUP_HANDLER, cleanup_handler},
+    {LAUNCH_SERVER,   WAIT_FOR_START,  wait_for_start },
+    {WAIT_FOR_START,  CONNECT_SM,      connect_sm     }
 };
 
 fsm_state_t connect_sm(void *args)
@@ -36,12 +38,12 @@ fsm_state_t connect_sm(void *args)
     while(running)
     {
         // Start TCP Client
-        printf("Connecting to server manager...\n");
+        PRINT_VERBOSE("%s\n", "Connecting to server manager...");
         *sm_args->sm_fd = tcp_client(sm_args->sm_addr, sm_args->sm_port, sm_args->err);
-        printf("sm_fd: %d\n", *sm_args->sm_fd);
+        PRINT_VERBOSE("sm_fd: %d\n", *sm_args->sm_fd);
         if(*sm_args->sm_fd > 0)
         {
-            printf("Connect to server manager at %s:%d\n", sm_args->sm_addr, sm_args->sm_port);
+            PRINT_VERBOSE("Connect to server manager at %s:%d\n", sm_args->sm_addr, sm_args->sm_port);
             return PARSE_ENVP;
         }
         perror("Failed to create TCP client.");
@@ -55,9 +57,11 @@ fsm_state_t connect_sm(void *args)
 fsm_state_t wait_for_start(void *args)
 {
     struct pollfd fds[1];
-    ssize_t nread;
+    ssize_t       nread;
 
     args_t *sm_args = (args_t *)args;
+
+    PRINT_DEBUG("%s\n", "wait_for_start");
 
     memset(sm_args->buf, 0, BUF_SIZE);
 
@@ -77,27 +81,30 @@ fsm_state_t wait_for_start(void *args)
             nread = read_fully(fds[0].fd, sm_args->buf, SM_HEADER_SIZE, sm_args->err);
             if(nread < 0 || nread < SM_HEADER_SIZE)
             {
-                perror("read_fully error");
-                errno = 0;
-                continue;
+                PRINT_VERBOSE("%s\n", "read_fully error in wait_for_start. Closing connection...");
+                errno         = 0;
+                *sm_args->err = 0;
+                close(fds[0].fd);
+                sleep(SLEEP);
+                return CONNECT_SM;
             }
 
             // print
             for(int i = 0; i < SM_HEADER_SIZE; i++)
             {
-                printf("%d ", sm_args->buf[i]);
+                PRINT_DEBUG("%d ", sm_args->buf[i]);
             }
-            printf("\n");
+            PRINT_DEBUG("%s\n", "");
 
             if(sm_args->buf[0] == SVR_Start)
             {
-                printf("Server start requested\n");
+                PRINT_VERBOSE("%s\n", "Server start requested");
                 return LAUNCH_SERVER;
             }
         }
         if(fds[0].revents & (POLLHUP | POLLERR))
         {
-            printf("sever manager exit\n");
+            PRINT_VERBOSE("%s\n", "sever manager exit");
             return CLEANUP_HANDLER;
         }
     }
@@ -163,7 +170,7 @@ fsm_state_t parse_envp(void *args)
 
     for(int i = 0; sm_args->envp[i] != NULL; i++)
     {
-        printf("%s\n", sm_args->envp[i]);
+        PRINT_DEBUG("%s\n", sm_args->envp[i]);
     }
 
     return WAIT_FOR_START;
@@ -233,10 +240,10 @@ fsm_state_t launch_server(void *args)
         }
         if(result == 0)
         {
-            printf("check child\n");
+            PRINT_VERBOSE("%s\n", "check child");
             if(waitpid(pid, &status, WNOHANG) > 0)
             {
-                printf("Child exited, status = %d\n", WEXITSTATUS(status));
+                PRINT_VERBOSE("Child exited, status = %d\n", WEXITSTATUS(status));
                 return CLEANUP_HANDLER;
             }
         }
@@ -252,28 +259,39 @@ fsm_state_t launch_server(void *args)
 
             if(sm_args->buf[0] == SVR_Stop)
             {
-                printf("Killing child process...\n");
+                PRINT_VERBOSE("%s\n", "Killing child process...");
                 // print
                 for(int i = 0; i < SM_HEADER_SIZE; i++)
                 {
-                    printf("%d ", sm_args->buf[i]);
+                    PRINT_DEBUG("%d ", sm_args->buf[i]);
                 }
-                printf("\n");
+                PRINT_DEBUG("%s\n", "");
+
                 kill(pid, SIGINT);
                 waitpid(pid, &status, 0);    // Ensure child cleanup
-                return CLEANUP_HANDLER;
+
+                memset(sm_args->buf, 0, SM_HEADER_SIZE);
+
+                ptr    = sm_args->buf;
+                *ptr++ = SVR_Offline;
+                *ptr++ = VERSION;
+                memcpy(ptr, &payload_len, sizeof(payload_len));
+
+                write_fully(*sm_args->sm_fd, sm_args->buf, SM_HEADER_SIZE, sm_args->err);
+                return WAIT_FOR_START;
             }
         }
         if(fds[0].revents & (POLLHUP | POLLERR))
         {
-            printf("server manager exit\n");
-            printf("Killing child process...\n");
+            PRINT_VERBOSE("%s\n", "server manager exit");
+            PRINT_VERBOSE("%s\n", "Killing child process...");
             // print
             for(int i = 0; i < SM_HEADER_SIZE; i++)
             {
-                printf("%d ", sm_args->buf[i]);
+                PRINT_DEBUG("%d ", sm_args->buf[i]);
             }
-            printf("\n");
+            PRINT_DEBUG("%s\n", "");
+
             kill(pid, SIGINT);
             waitpid(pid, &status, 0);    // Ensure child cleanup
             return CLEANUP_HANDLER;
@@ -336,6 +354,11 @@ int main(int argc, char *argv[])
 
     get_arguments(&args, argc, argv);
 
+    printf("verbose: %d\n", verbose);
+
+    PRINT_VERBOSE("%s\n", "verbose on");
+    PRINT_DEBUG("%s\n", "debug on");
+
     from_id = START;
     to_id   = CONNECT_SM;
 
@@ -344,7 +367,7 @@ int main(int argc, char *argv[])
         perform = fsm_transition(from_id, to_id, transitions, sizeof(transitions));
         if(perform == NULL)
         {
-            printf("illegal state %d, %d \n", from_id, to_id);
+            PRINT_VERBOSE("illegal state %d, %d \n", from_id, to_id);
             close(sm_fd);
             for(int i = 0; args.envp[i] != NULL; i++)
             {
@@ -361,7 +384,7 @@ int main(int argc, char *argv[])
         to_id   = perform(&args);
     } while(to_id != END);
 
-    printf("Starter shutting down...\n");
+    PRINT_VERBOSE("%s\n", "Starter shutting down...");
 
     if(err != 0)
     {
