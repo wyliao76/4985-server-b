@@ -31,6 +31,52 @@ static const struct fsm_transition transitions[] = {
     {WAIT_FOR_START,  CONNECT_SM,      connect_sm     }
 };
 
+static ssize_t send_online(void *args)
+{
+    args_t  *sm_args     = (args_t *)args;
+    uint16_t payload_len = htons(0x0000);
+    char    *ptr;
+
+    memset((void *)sm_args->buf, 0, SM_HEADER_SIZE);
+
+    ptr    = sm_args->buf;
+    *ptr++ = SVR_Online;
+    *ptr++ = VERSION;
+    memcpy(ptr, &payload_len, sizeof(payload_len));
+
+    return write_fully(*sm_args->sm_fd, sm_args->buf, SM_HEADER_SIZE, sm_args->err);
+}
+
+static ssize_t send_offline(void *args)
+{
+    args_t  *sm_args     = (args_t *)args;
+    uint16_t payload_len = htons(0x0000);
+    char    *ptr;
+
+    memset((void *)sm_args->buf, 0, SM_HEADER_SIZE);
+
+    ptr    = sm_args->buf;
+    *ptr++ = SVR_Offline;
+    *ptr++ = VERSION;
+    memcpy(ptr, &payload_len, sizeof(payload_len));
+
+    return write_fully(*sm_args->sm_fd, sm_args->buf, SM_HEADER_SIZE, sm_args->err);
+}
+
+static void cleanup(void *args)
+{
+    args_t *sm_args = (args_t *)args;
+
+    for(int i = 0; sm_args->envp[i] != NULL; i++)
+    {
+        free(sm_args->envp[i]);
+    }
+    for(int i = 0; sm_args->argv[i] != NULL; i++)
+    {
+        free(sm_args->argv[i]);
+    }
+}
+
 fsm_state_t connect_sm(void *args)
 {
     args_t *sm_args = (args_t *)args;
@@ -133,6 +179,7 @@ fsm_state_t parse_envp(void *args)
         {NULL,       NULL,              0}  // End marker
     };
 
+    cleanup(sm_args);
     index = 0;
 
     for(int i = 0; env_vars[i].key != NULL; i++)
@@ -182,8 +229,6 @@ fsm_state_t launch_server(void *args)
     int           status;
     pid_t         pid;
     struct pollfd fds[1];
-    uint16_t      payload_len = htons(0x0000);
-    char         *ptr;
 
     args_t *sm_args = (args_t *)args;
 
@@ -205,14 +250,7 @@ fsm_state_t launch_server(void *args)
         _exit(EXIT_FAILURE);
     }
 
-    memset((void *)sm_args->buf, 0, SM_HEADER_SIZE);
-
-    ptr    = sm_args->buf;
-    *ptr++ = SVR_Online;
-    *ptr++ = VERSION;
-    memcpy(ptr, &payload_len, sizeof(payload_len));
-
-    if(write_fully(*sm_args->sm_fd, sm_args->buf, SM_HEADER_SIZE, sm_args->err) < 0)
+    if(send_online(sm_args) < 0)
     {
         return CLEANUP_HANDLER;
     }
@@ -239,14 +277,7 @@ fsm_state_t launch_server(void *args)
                     if(waitpid(pid, &status, WNOHANG) > 0)
                     {
                         PRINT_VERBOSE("Child exited, status = %d\n", WEXITSTATUS(status));
-                        memset(sm_args->buf, 0, SM_HEADER_SIZE);
-
-                        ptr    = sm_args->buf;
-                        *ptr++ = SVR_Offline;
-                        *ptr++ = VERSION;
-                        memcpy(ptr, &payload_len, sizeof(payload_len));
-
-                        write_fully(*sm_args->sm_fd, sm_args->buf, SM_HEADER_SIZE, sm_args->err);
+                        send_offline(sm_args);
                         return WAIT_FOR_START;
                     }
                 }
@@ -279,15 +310,7 @@ fsm_state_t launch_server(void *args)
 
                 kill(pid, SIGINT);
                 waitpid(pid, &status, 0);    // Ensure child cleanup
-
-                memset(sm_args->buf, 0, SM_HEADER_SIZE);
-
-                ptr    = sm_args->buf;
-                *ptr++ = SVR_Offline;
-                *ptr++ = VERSION;
-                memcpy(ptr, &payload_len, sizeof(payload_len));
-
-                write_fully(*sm_args->sm_fd, sm_args->buf, SM_HEADER_SIZE, sm_args->err);
+                send_offline(sm_args);
                 return WAIT_FOR_START;
             }
         }
@@ -314,28 +337,13 @@ fsm_state_t launch_server(void *args)
 
 fsm_state_t cleanup_handler(void *args)
 {
-    args_t  *sm_args = (args_t *)args;
-    char    *ptr;
-    uint16_t payload_len = htons(0x0000);
+    args_t *sm_args = (args_t *)args;
 
-    memset(sm_args->buf, 0, SM_HEADER_SIZE);
+    send_offline(sm_args);
 
-    ptr    = sm_args->buf;
-    *ptr++ = SVR_Offline;
-    *ptr++ = VERSION;
-    memcpy(ptr, &payload_len, sizeof(payload_len));
-
-    write_fully(*sm_args->sm_fd, sm_args->buf, SM_HEADER_SIZE, sm_args->err);
+    cleanup(sm_args);
 
     close(*sm_args->sm_fd);
-    for(int i = 0; sm_args->envp[i] != NULL; i++)
-    {
-        free(sm_args->envp[i]);
-    }
-    for(int i = 0; sm_args->argv[i] != NULL; i++)
-    {
-        free(sm_args->argv[i]);
-    }
 
     return END;
 }
