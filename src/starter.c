@@ -11,8 +11,7 @@
 #include <string.h>
 #include <sys/wait.h>
 
-#define SLEEP 3         // 3s
-#define TIMEOUT 3000    // 3s
+#define SLEEP 3    // 3s
 #define INADDRESS "0.0.0.0"
 #define OUTADDRESS "0.0.0.0"
 #define PORT "8081"
@@ -226,28 +225,37 @@ fsm_state_t launch_server(void *args)
         ssize_t result;
 
         errno  = 0;
-        result = poll(fds, 1, TIMEOUT);
+        result = poll(fds, 1, -1);
         if(result == -1)
         {
             perror("Poll error");
             if(errno == EINTR)
             {
                 errno = 0;
+                // server died accidentally, don't kill starter
+                if(running == 1)
+                {
+                    PRINT_VERBOSE("%s\n", "checking child...");
+                    if(waitpid(pid, &status, WNOHANG) > 0)
+                    {
+                        PRINT_VERBOSE("Child exited, status = %d\n", WEXITSTATUS(status));
+                        memset(sm_args->buf, 0, SM_HEADER_SIZE);
+
+                        ptr    = sm_args->buf;
+                        *ptr++ = SVR_Offline;
+                        *ptr++ = VERSION;
+                        memcpy(ptr, &payload_len, sizeof(payload_len));
+
+                        write_fully(*sm_args->sm_fd, sm_args->buf, SM_HEADER_SIZE, sm_args->err);
+                        return WAIT_FOR_START;
+                    }
+                }
             }
             else
             {
                 *sm_args->err = errno;
             }
             return CLEANUP_HANDLER;
-        }
-        if(result == 0)
-        {
-            PRINT_VERBOSE("%s\n", "check child");
-            if(waitpid(pid, &status, WNOHANG) > 0)
-            {
-                PRINT_VERBOSE("Child exited, status = %d\n", WEXITSTATUS(status));
-                return CLEANUP_HANDLER;
-            }
         }
         if(fds[0].revents & POLLIN)
         {
