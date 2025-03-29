@@ -1,11 +1,11 @@
 #include "args.h"
 #include "networking.h"
+#include "utils.h"
 #include <getopt.h>
 #include <p101_c/p101_stdio.h>
 #include <p101_c/p101_stdlib.h>
 
 #define UNKNOWN_OPTION_MESSAGE_LEN 22
-int verbose = 0;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 _Noreturn void usage(const char *binary_name, int exit_code, const char *message)
 {

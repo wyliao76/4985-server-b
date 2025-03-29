@@ -1,5 +1,7 @@
 #include "database.h"
+#include "args.h"
 #include "messaging.h"
+#include "utils.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <p101_c/p101_stdio.h>

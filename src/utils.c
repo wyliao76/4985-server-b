@@ -11,7 +11,8 @@ _Pragma("clang diagnostic ignored \"-Wdisabled-macro-expansion\"")
 
 #define SIG_BUF 50
 
-    volatile sig_atomic_t running   = 1;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+    int verbose                     = 0;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+volatile sig_atomic_t running       = 1;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 volatile sig_atomic_t server_switch = 3;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 /* Calls `free()` and nullifies the ptr. */

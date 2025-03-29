@@ -8,9 +8,6 @@
 #define BUF_SIZE 50
 #define ARGC 10
 
-// 1 = Verbose, 2 = Debug
-extern int verbose;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
-
 typedef struct args_t
 {
     const char *addr;
