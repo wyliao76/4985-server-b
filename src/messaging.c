@@ -113,9 +113,7 @@ static void count_user(const int *sessions)
 
 static void send_user_count(int sm_fd, char *msg, int *err)
 {
-    char      *ptr;
-    int        fd;
-    const char log[] = "./text.txt";
+    char *ptr;
 
     ptr = msg;
     // move 6 bytes
@@ -129,20 +127,6 @@ static void send_user_count(int sm_fd, char *msg, int *err)
     msg_count = ntohl(msg_count);
 
     printf("send_user_count\n");
-
-    // testing
-    fd = open(log, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, S_IRUSR | S_IWUSR);
-    if(fd == -1)
-    {
-        perror("open");
-        errno = 0;
-    }
-    else
-    {
-        write_fully(fd, msg, MSG_LEN, err);
-        close(fd);
-    }
-    // testing
 
     if(write_fully(sm_fd, msg, MSG_LEN, err) < 0)
     {
@@ -313,6 +297,7 @@ void event_loop(int server_fd, int sm_fd, int *err)
                     from_id = START;
                     to_id   = REQUEST_HANDLER;
 
+                    errno          = 0;
                     request.err    = 0;
                     request.client = &fds[i];
                     // user_id
@@ -397,7 +382,7 @@ fsm_state_t request_handler(void *args)
     printf("request_handler nread %d\n", (int)nread);
     if(nread < 0)
     {
-        perror("Read_fully error\n");
+        perror("Read_fully error");
         return ERROR_HANDLER;
     }
 
@@ -534,7 +519,11 @@ fsm_state_t error_handler(void *args)
     }
     printf("response_len: %d\n", (request->response_len));
 
-    write_fully(request->client->fd, request->response, request->response_len, &request->err);
+    // don't write if connection was gone
+    if(errno != ECONNRESET)
+    {
+        write_fully(request->client->fd, request->response, request->response_len, &request->err);
+    }
 
     free(request->content);
     close(request->client->fd);
