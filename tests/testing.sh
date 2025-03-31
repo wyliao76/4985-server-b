@@ -29,6 +29,7 @@ echo -ne '\xFF\x02\x00\x00\x00\x16\x0C\x07\x54\x65\x73\x74\x69\x6E\x67\x0C\x0B\x
 
 # invalid login payload (header too short)
 echo -ne '' | nc 127.0.0.1 8000 | hexdump -C
+echo -ne '\xFF' | nc 127.0.0.1 8000 | hexdump -C
 echo -ne '\x0A\x02\x00\x00\x16' | nc 127.0.0.1 8000 | hexdump -C
 
 # invalid login payload (payload is 0)

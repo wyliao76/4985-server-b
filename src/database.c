@@ -143,7 +143,7 @@ void *retrieve_byte(DBM *db, const void *key, size_t size)
         return NULL;
     }
 
-    printf("result.dsize: %d\n", (int)result.dsize);
+    printf("result.dsize: %zu\n", TO_SIZE_T(result.dsize));
 
     memcpy(retrieved, result.dptr, TO_SIZE_T(result.dsize));
 
@@ -165,14 +165,14 @@ ssize_t verify_user(DBM *db, const void *key, size_t k_size, const void *value, 
         return -1;
     }
 
-    printf("result.dsize: %d\n", (int)result.dsize);
+    printf("result.dsize: %zu\n", TO_SIZE_T(result.dsize));
 
-    if(result.dsize != v_size)
+    if(TO_SIZE_T(result.dsize) != v_size)
     {
         return -2;
     }
 
-    match = secure_cmp(result.dptr, value, result.dsize);
+    match = secure_cmp(result.dptr, value, TO_SIZE_T(result.dsize));
 
     printf("match: %d\n", (int)match);
     if(match != 0)
