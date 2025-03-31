@@ -90,14 +90,10 @@ static void serialize_sm_diagnostic(char *msg)
 
     *ptr++ = INTEGER;
     *ptr++ = sizeof(user_count);
-    // user_count = htons(user_count);
-    // memcpy(ptr, &user_count, sizeof(user_count));
     ptr += sizeof(user_count);
 
     *ptr++ = INTEGER;
     *ptr++ = sizeof(msg_count);
-    // msg_count = htonl(msg_count);
-    // memcpy(ptr, &msg_count, sizeof(msg_count));
 }
 
 static void count_user(const int *sessions)
