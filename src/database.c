@@ -169,13 +169,17 @@ ssize_t verify_user(DBM *db, const void *key, size_t k_size, const void *value, 
 
     if(result.dsize != v_size)
     {
-        return -1;
+        return -2;
     }
 
     match = secure_cmp(result.dptr, value, result.dsize);
 
     printf("match: %d\n", (int)match);
-    return match;
+    if(match != 0)
+    {
+        return -3;
+    }
+    return 0;
 }
 
 ssize_t init_pk(DBO *dbo, const char *pk_name)

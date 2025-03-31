@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #define HEADER_SIZE 6
+#define CONTENT_SIZE 256
 #define RESPONSE_SIZE 256
 #define SERVER_ID 0x0000
 #define MAX_CLIENTS 64

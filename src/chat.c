@@ -1,5 +1,6 @@
 #include "chat.h"
 #include "io.h"
+#include "utils.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <p101_c/p101_stdio.h>
@@ -21,7 +22,15 @@ ssize_t chat_broadcast(request_t *request)
     uint8_t     content_len;
     uint8_t     user_len;
 
-    printf("in chat_broadcast %d \n", request->client->fd);
+    PRINT_VERBOSE("in chat_broadcast %d \n", request->client->fd);
+    PRINT_DEBUG("sender_id %d \n", request->sender_id);
+    PRINT_DEBUG("session_id %d \n", *request->session_id);
+
+    if(request->sender_id != *request->session_id)
+    {
+        request->code = INVALID_REQUEST;
+        return -1;
+    }
 
     // broadcast
     // start from timestamp len

@@ -7,6 +7,10 @@
 #include <p101_c/p101_stdlib.h>
 #include <string.h>
 
+#define MAX_LEN 64
+
+static ssize_t check_len(const uint8_t *len);
+
 const funcMapping acc_func[] = {
     {ACC_Create,  account_create},
     {ACC_Login,   account_login },
@@ -14,6 +18,16 @@ const funcMapping acc_func[] = {
     {ACC_Edit,    NULL          },
     {SYS_Success, NULL          }  // Null termination for safety
 };
+
+static ssize_t check_len(const uint8_t *len)
+{
+    if(*len > MAX_LEN || *len == 0)
+    {
+        printf("invalid len\n");
+        return -1;
+    }
+    return 0;
+}
 
 ssize_t account_create(request_t *request)
 {
@@ -57,6 +71,12 @@ ssize_t account_create(request_t *request)
     ptr = (char *)request->content + HEADER_SIZE + 1;
 
     memcpy(&user_len, ptr, sizeof(user_len));
+    printf("user_len: %d\n", user_len);
+    if(check_len(&user_len) == -1)
+    {
+        request->code = INVALID_REQUEST;
+        goto error;
+    }
     ptr += sizeof(user_len);
 
     username = ptr;
@@ -64,6 +84,12 @@ ssize_t account_create(request_t *request)
     // start from password len
     ptr += user_len + 1;
     memcpy(&pass_len, ptr, sizeof(pass_len));
+    printf("pass_len: %d\n", pass_len);
+    if(check_len(&pass_len) == -1)
+    {
+        request->code = INVALID_REQUEST;
+        goto error;
+    }
     ptr += sizeof(pass_len);
 
     password = ptr;
@@ -133,13 +159,11 @@ ssize_t account_create(request_t *request)
     *ptr++ = sizeof(uint8_t);
     *ptr++ = ACC_Create;
 
-    memset(request->content, 0, request->len + HEADER_SIZE);
     dbm_close(userDB.db);
     dbm_close(index_userDB.db);
     return 0;
 
 error:
-    memset(request->content, 0, request->len + HEADER_SIZE);
     dbm_close(userDB.db);
     dbm_close(index_userDB.db);
 
@@ -159,6 +183,7 @@ ssize_t account_login(request_t *request)
     const char *username;
     const char *password;
     int         user_id;
+    ssize_t     result;
 
     // server default to 0
     uint16_t sender_id = SERVER_ID;
@@ -186,17 +211,31 @@ ssize_t account_login(request_t *request)
         goto error;
     }
 
+    printf("extracting user_len\n");
     // start from username len
     ptr = (char *)request->content + HEADER_SIZE + 1;
 
     memcpy(&user_len, ptr, sizeof(user_len));
+    printf("user_len: %d\n", user_len);
+    if(check_len(&user_len) == -1)
+    {
+        request->code = INVALID_REQUEST;
+        goto error;
+    }
     ptr += sizeof(user_len);
 
     username = ptr;
 
+    printf("extracting pass_len\n");
     // start from password len
     ptr += user_len + 1;
     memcpy(&pass_len, ptr, sizeof(pass_len));
+    printf("pass_len: %d\n", pass_len);
+    if(check_len(&pass_len) == -1)
+    {
+        request->code = INVALID_REQUEST;
+        goto error;
+    }
     ptr += sizeof(pass_len);
 
     password = ptr;
@@ -204,9 +243,22 @@ ssize_t account_login(request_t *request)
     printf("username: %.*s\n", (int)user_len, username);
     printf("password: %.*s\n", (int)pass_len, password);
 
-    if(verify_user(userDB.db, username, user_len, password, pass_len) != 0)
+    result = verify_user(userDB.db, username, user_len, password, pass_len);
+    if(result == -1)
     {
-        printf("verify user error\n");
+        printf("user not exist\n");
+        request->code = INVALID_USER_ID;
+        goto error;
+    }
+    else if(result == -2)
+    {
+        printf("password invalid length\n");
+        request->code = INVALID_AUTH;
+        goto error;
+    }
+    else if(result == -3)
+    {
+        printf("invalid auth\n");
         request->code = INVALID_AUTH;
         goto error;
     }
@@ -247,13 +299,11 @@ ssize_t account_login(request_t *request)
 
     printf("session_id %d\n", *request->session_id);
 
-    memset(request->content, 0, request->len + HEADER_SIZE);
     dbm_close(userDB.db);
     dbm_close(index_userDB.db);
     return 0;
 
 error:
-    memset(request->content, 0, request->len + HEADER_SIZE);
     dbm_close(userDB.db);
     dbm_close(index_userDB.db);
     return -1;
@@ -261,7 +311,15 @@ error:
 
 ssize_t account_logout(request_t *request)
 {
-    printf("in account_logout %d \n", request->client->fd);
+    PRINT_VERBOSE("in account_logout %d \n", request->client->fd);
+    PRINT_DEBUG("sender_id %d \n", request->sender_id);
+    PRINT_DEBUG("session_id %d \n", *request->session_id);
+
+    if(request->sender_id != *request->session_id)
+    {
+        request->code = INVALID_REQUEST;
+        return -1;
+    }
 
     request->response_len = 0;
 

@@ -53,6 +53,7 @@ static const struct fsm_transition transitions[] = {
     {START,            REQUEST_HANDLER,  request_handler },
     {REQUEST_HANDLER,  HEADER_HANDLER,   header_handler  },
     {HEADER_HANDLER,   BODY_HANDLER,     body_handler    },
+    {HEADER_HANDLER,   PROCESS_HANDLER,  process_handler },
     {BODY_HANDLER,     PROCESS_HANDLER,  process_handler },
     {PROCESS_HANDLER,  RESPONSE_HANDLER, response_handler},
     {RESPONSE_HANDLER, END,              NULL            },
@@ -305,7 +306,7 @@ void event_loop(int server_fd, int sm_fd, int *err)
                     request.len          = HEADER_SIZE;
                     request.response_len = 3;
                     request.fds          = fds;
-                    request.content      = malloc(HEADER_SIZE);
+                    request.content      = malloc(CONTENT_SIZE);
                     if(request.content == NULL)
                     {
                         perror("Malloc failed to allocate memory\n");
@@ -383,6 +384,7 @@ fsm_state_t request_handler(void *args)
     if(nread < 0)
     {
         perror("Read_fully error");
+        request->code = SERVER_ERROR;
         return ERROR_HANDLER;
     }
 
@@ -422,6 +424,18 @@ fsm_state_t header_handler(void *args)
     request->len = ntohs(len);
     printf("len size (after ntohs): %u\n", (uint16_t)request->len);
 
+    if(request->len == 0)
+    {
+        return PROCESS_HANDLER;
+    }
+
+    if(request->len > CONTENT_SIZE - HEADER_SIZE)
+    {
+        printf("invalid payload len\n");
+        request->code = INVALID_REQUEST;
+        return ERROR_HANDLER;
+    }
+
     return BODY_HANDLER;
 }
 
@@ -429,25 +443,17 @@ fsm_state_t body_handler(void *args)
 {
     request_t *request;
     ssize_t    nread;
-    void      *buf;
 
     request = (request_t *)args;
     printf("in header_handler %d\n", request->client->fd);
 
     printf("len size: %u\n", (uint16_t)(request->len + HEADER_SIZE));
 
-    buf = realloc(request->content, request->len + HEADER_SIZE);
-    if(!buf)
-    {
-        perror("Failed to realloc buf");
-        return ERROR_HANDLER;
-    }
-    request->content = buf;
-
     nread = read_fully(request->client->fd, (char *)request->content + HEADER_SIZE, request->len, &request->err);
     if(nread < 0)
     {
         perror("Read_fully error\n");
+        request->code = SERVER_ERROR;
         return ERROR_HANDLER;
     }
 
@@ -464,15 +470,23 @@ fsm_state_t process_handler(void *args)
     printf("in process_handler %d\n", request->client->fd);
 
     result = execute_functions(request, acc_func);
-    if(result <= 0)
+    if(result == 0)
     {
-        return (result < 0) ? ERROR_HANDLER : RESPONSE_HANDLER;
+        return RESPONSE_HANDLER;
+    }
+    if(result < 0)
+    {
+        return ERROR_HANDLER;
     }
 
     result = execute_functions(request, chat_func);
-    if(result <= 0)
+    if(result == 0)
     {
-        return (result < 0) ? ERROR_HANDLER : RESPONSE_HANDLER;
+        return RESPONSE_HANDLER;
+    }
+    if(result < 0)
+    {
+        return ERROR_HANDLER;
     }
 
     request->code = INVALID_REQUEST;
@@ -495,6 +509,7 @@ fsm_state_t response_handler(void *args)
         write_fully(request->client->fd, request->response, request->response_len, &request->err);
     }
 
+    memset(request->content, 0, CONTENT_SIZE);
     free(request->content);
 
     // for linux
@@ -525,6 +540,7 @@ fsm_state_t error_handler(void *args)
         write_fully(request->client->fd, request->response, request->response_len, &request->err);
     }
 
+    memset(request->content, 0, CONTENT_SIZE);
     free(request->content);
     close(request->client->fd);
     request->client->fd     = -1;

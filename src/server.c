@@ -88,9 +88,14 @@ int main(int argc, char *argv[], char *envp[])
     convert_port(port ? port : PORT, &args.port);
     args.sm_addr = sm_addr ? sm_addr : OUTADDRESS;
     convert_port(sm_port ? sm_port : SM_PORT, &args.sm_port);
-    sm_fd = convert(getenv("SM_FD"));
+    sm_fd   = convert(getenv("SM_FD"));
+    verbose = convert(getenv("VERBOSE"));
 
     get_arguments(&args, argc, argv);
+
+    printf("verbose: %d\n", verbose);
+    PRINT_VERBOSE("%s\n", "verbose on");
+    PRINT_DEBUG("%s\n", "debug on");
 
     // Start TCP Server
     server_fd = tcp_server(args.addr, args.port, BACKLOG, &err);

@@ -169,13 +169,14 @@ fsm_state_t parse_envp(void *args)
     {
         const char *key;
         const void *value;
-        int         is_string;    // 1 for string, 0 for integer
+        int         is_string;    // 1 for string, 0 for in_port_t, 2 for int
     } const env_vars[] = {
         {"ADDR=",    sm_args->addr,     1},
         {"PORT=",    &sm_args->port,    0},
         {"SM_ADDR=", sm_args->sm_addr,  1},
         {"SM_PORT=", &sm_args->sm_port, 0},
         {"SM_FD=",   sm_args->sm_fd,    2},
+        {"VERBOSE=", &verbose,          2},
         {NULL,       NULL,              0}  // End marker
     };
 
@@ -373,7 +374,6 @@ int main(int argc, char *argv[])
     get_arguments(&args, argc, argv);
 
     printf("verbose: %d\n", verbose);
-
     PRINT_VERBOSE("%s\n", "verbose on");
     PRINT_DEBUG("%s\n", "debug on");
 
