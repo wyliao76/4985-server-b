@@ -4,74 +4,50 @@
 #include <p101_c/p101_stdio.h>
 #include <p101_c/p101_stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
-
-#define TIMEOUT 10000
-#define MILLI_SEC 1000
 
 ssize_t read_fully(int fd, char *buf, size_t size, int *err)
 {
-    ssize_t nread;
-    time_t  current;
-    time_t  end;
-
-    current = (time_t)(clock() * MILLI_SEC / CLOCKS_PER_SEC);
-    end     = current + TIMEOUT;
-    do
+    size_t bytes_read = 0;
+    while(bytes_read < size)
     {
-        errno   = 0;
-        current = (time_t)(clock() * MILLI_SEC / CLOCKS_PER_SEC);
-        nread   = read(fd, buf, size);
-        if(nread == 0)
-        {
-            break;
-        }
-        if(nread == -1)
-        {
-            if(errno == EINTR || errno == EAGAIN)
-            {
-                errno = 0;
-                continue;
-            }
-            perror("read_fully error");
-            *err = errno;
-            return -1;
-        }
-    } while(nread < (ssize_t)size && current <= end);
-
-    return nread;
-}
-
-ssize_t write_fully(int fd, void *buf, ssize_t size, int *err)
-{
-    time_t      current;
-    time_t      end;
-    ssize_t     bytes_wrote;
-    const char *ptr;
-
-    ptr         = (char *)buf;
-    bytes_wrote = 0;
-    current     = (time_t)(clock() * MILLI_SEC / CLOCKS_PER_SEC);
-    end         = current + TIMEOUT;
-    do
-    {
-        ssize_t result;
-        current = (time_t)(clock() * MILLI_SEC / CLOCKS_PER_SEC);
-
-        result = write(fd, ptr + bytes_wrote, (size_t)(size - bytes_wrote));
+        ssize_t result = read(fd, buf + bytes_read, size - bytes_read);
         if(result == 0)
         {
-            break;
+            break;    // EOF reached
         }
         if(result == -1)
         {
+            if(errno == EINTR || errno == EAGAIN)
+            {
+                continue;    // Interrupted, retry
+            }
             *err = errno;
-            return -1;
+            return -1;    // Error occurred
         }
-        bytes_wrote += result;
-    } while(bytes_wrote < size && current <= end);
-    return bytes_wrote;
+        bytes_read += (size_t)result;
+    }
+    return (ssize_t)bytes_read;
+}
+
+ssize_t write_fully(int fd, const void *buf, ssize_t size, int *err)
+{
+    size_t bytes_written = 0;
+    while(bytes_written < (size_t)size)
+    {
+        ssize_t result = write(fd, (const char *)buf + bytes_written, (size_t)size - bytes_written);
+        if(result == -1)
+        {
+            if(errno == EINTR || errno == EAGAIN)
+            {
+                continue;    // Interrupted, retry
+            }
+            *err = errno;
+            return -1;    // Error occurred
+        }
+        bytes_written += (size_t)result;
+    }
+    return (ssize_t)bytes_written;
 }
 
 ssize_t copy(int from, int to, int *err)

@@ -19,8 +19,8 @@ int main(void)
     args_t        args;
     int           server_fd;
     int           client_fd;
-    char          start[SM_HEADER_SIZE] = {SVR_Start, VERSION, 0x00, 0x00};
-    char          stop[SM_HEADER_SIZE]  = {SVR_Stop, VERSION, 0x00, 0x00};
+    const char    start[SM_HEADER_SIZE] = {SVR_Start, VERSION, 0x00, 0x00};
+    const char    stop[SM_HEADER_SIZE]  = {SVR_Stop, VERSION, 0x00, 0x00};
     char          buf[MSG_LEN];
     int           err;
     int           added;
