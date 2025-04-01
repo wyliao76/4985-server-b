@@ -7,12 +7,14 @@
 #include <p101_c/p101_stdlib.h>
 #include <string.h>
 
+static ssize_t chat_broadcast(request_t *request);
+
 const funcMapping chat_func[] = {
     {CHT_Send,    chat_broadcast},
     {SYS_Success, NULL          }  // Null termination for safety
 };
 
-ssize_t chat_broadcast(request_t *request)
+static ssize_t chat_broadcast(request_t *request)
 {
     char       *ptr;
     const char *timestamp;

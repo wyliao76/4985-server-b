@@ -13,6 +13,7 @@
 #define ERR_INVALID_CHARS 3
 
 static void setup_network_address(struct sockaddr_storage *addr, socklen_t *addr_len, const char *address, in_port_t port, int *err);
+static int  setSocketNonBlocking(int socket, int *err);
 static int  setup_tcp_server(const struct sockaddr_storage *addr, socklen_t addr_len, int backlog, int *err);
 static int  connect_to_server(struct sockaddr_storage *addr, socklen_t addr_len, int *err);
 
@@ -89,7 +90,7 @@ static void setup_network_address(struct sockaddr_storage *addr, socklen_t *addr
     }
 }
 
-int setSocketNonBlocking(int socket, int *err)
+static int setSocketNonBlocking(int socket, int *err)
 {
     int flags = fcntl(socket, F_GETFL, 0);
     if(flags == -1)

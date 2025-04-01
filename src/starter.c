@@ -17,6 +17,15 @@
 #define PORT "8081"
 #define SM_PORT "9000"
 
+static ssize_t     send_online(void *args);
+static ssize_t     send_offline(void *args);
+static void        cleanup(void *args);
+static fsm_state_t connect_sm(void *args);
+static fsm_state_t wait_for_start(void *args);
+static fsm_state_t parse_envp(void *args);
+static fsm_state_t launch_server(void *args);
+static fsm_state_t cleanup_handler(void *args);
+
 static const struct fsm_transition transitions[] = {
     {START,           CONNECT_SM,      connect_sm     },
     {CONNECT_SM,      PARSE_ENVP,      parse_envp     },
@@ -77,7 +86,7 @@ static void cleanup(void *args)
     }
 }
 
-fsm_state_t connect_sm(void *args)
+static fsm_state_t connect_sm(void *args)
 {
     args_t *sm_args = (args_t *)args;
     while(running)
@@ -99,7 +108,7 @@ fsm_state_t connect_sm(void *args)
     return CLEANUP_HANDLER;
 }
 
-fsm_state_t wait_for_start(void *args)
+static fsm_state_t wait_for_start(void *args)
 {
     struct pollfd fds[1];
     ssize_t       nread;
@@ -158,7 +167,7 @@ fsm_state_t wait_for_start(void *args)
     return CLEANUP_HANDLER;
 }
 
-fsm_state_t parse_envp(void *args)
+static fsm_state_t parse_envp(void *args)
 {
     args_t     *sm_args = (args_t *)args;
     int         index;
@@ -225,7 +234,7 @@ fsm_state_t parse_envp(void *args)
     return WAIT_FOR_START;
 }
 
-fsm_state_t launch_server(void *args)
+static fsm_state_t launch_server(void *args)
 {
     int           status;
     pid_t         pid;
@@ -336,7 +345,7 @@ fsm_state_t launch_server(void *args)
     return CLEANUP_HANDLER;
 }
 
-fsm_state_t cleanup_handler(void *args)
+static fsm_state_t cleanup_handler(void *args)
 {
     args_t *sm_args = (args_t *)args;
 

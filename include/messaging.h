@@ -121,22 +121,6 @@ typedef enum
     SVR_Stop       = 0x15,
 } sm_type_t;
 
-const char *code_to_string(const code_t *code);
-
-void error_response(request_t *request);
-
 void event_loop(int server_fd, int sm_fd, int *err);
-
-fsm_state_t request_handler(void *args);
-
-fsm_state_t header_handler(void *args);
-
-fsm_state_t body_handler(void *args);
-
-fsm_state_t process_handler(void *args);
-
-fsm_state_t response_handler(void *args);
-
-fsm_state_t error_handler(void *args);
 
 #endif

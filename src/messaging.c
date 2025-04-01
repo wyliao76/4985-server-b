@@ -22,10 +22,18 @@ uint16_t user_count = 0;            // NOLINT(cppcoreguidelines-avoid-non-const-
 uint32_t msg_count  = MSG_COUNT;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 int      user_index = 0;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
-static ssize_t execute_functions(request_t *request, const funcMapping functions[]);
-static void    serialize_sm_diagnostic(char *msg);
-static void    count_user(const int *sessions);
-static void    send_user_count(int sm_fd, char *msg, int *err);
+static const char *code_to_string(const code_t *code);
+static ssize_t     execute_functions(request_t *request, const funcMapping functions[]);
+static void        serialize_sm_diagnostic(char *msg);
+static void        count_user(const int *sessions);
+static void        send_user_count(int sm_fd, char *msg, int *err);
+static void        error_response(request_t *request);
+static fsm_state_t request_handler(void *args);
+static fsm_state_t header_handler(void *args);
+static fsm_state_t body_handler(void *args);
+static fsm_state_t process_handler(void *args);
+static fsm_state_t response_handler(void *args);
+static fsm_state_t error_handler(void *args);
 
 static const codeMapping code_map[] = {
     {OK,              ""                                  },
@@ -37,7 +45,7 @@ static const codeMapping code_map[] = {
     {REQUEST_TIMEOUT, "Request Timeout"                   }
 };
 
-const char *code_to_string(const code_t *code)
+static const char *code_to_string(const code_t *code)
 {
     for(size_t i = 0; i < sizeof(code_map) / sizeof(code_map[0]); i++)
     {
@@ -136,7 +144,7 @@ static void send_user_count(int sm_fd, char *msg, int *err)
     }
 }
 
-void error_response(request_t *request)
+static void error_response(request_t *request)
 {
     char *ptr;
 
@@ -369,7 +377,7 @@ cleanup:
     dbm_close(meta_userDB.db);
 }
 
-fsm_state_t request_handler(void *args)
+static fsm_state_t request_handler(void *args)
 {
     request_t *request;
     ssize_t    nread;
@@ -396,7 +404,7 @@ fsm_state_t request_handler(void *args)
     return HEADER_HANDLER;
 }
 
-fsm_state_t header_handler(void *args)
+static fsm_state_t header_handler(void *args)
 {
     request_t *request;
 
@@ -439,7 +447,7 @@ fsm_state_t header_handler(void *args)
     return BODY_HANDLER;
 }
 
-fsm_state_t body_handler(void *args)
+static fsm_state_t body_handler(void *args)
 {
     request_t *request;
     ssize_t    nread;
@@ -460,7 +468,7 @@ fsm_state_t body_handler(void *args)
     return PROCESS_HANDLER;
 }
 
-fsm_state_t process_handler(void *args)
+static fsm_state_t process_handler(void *args)
 {
     request_t *request;
     ssize_t    result;
@@ -493,7 +501,7 @@ fsm_state_t process_handler(void *args)
     return ERROR_HANDLER;
 }
 
-fsm_state_t response_handler(void *args)
+static fsm_state_t response_handler(void *args)
 {
     request_t *request;
 
@@ -520,7 +528,7 @@ fsm_state_t response_handler(void *args)
     return END;
 }
 
-fsm_state_t error_handler(void *args)
+static fsm_state_t error_handler(void *args)
 {
     request_t *request;
 

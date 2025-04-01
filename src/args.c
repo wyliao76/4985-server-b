@@ -7,7 +7,9 @@
 
 #define UNKNOWN_OPTION_MESSAGE_LEN 22
 
-_Noreturn void usage(const char *binary_name, int exit_code, const char *message)
+static _Noreturn void usage(const char *binary_name, int exit_code, const char *message);
+
+static _Noreturn void usage(const char *binary_name, int exit_code, const char *message)
 {
     if(message)
     {

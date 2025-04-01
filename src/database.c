@@ -12,6 +12,7 @@
 #pragma GCC diagnostic ignored "-Waggregate-return"
 
 static ssize_t secure_cmp(const void *a, const void *b, size_t size);
+static int     retrieve_int(DBM *db, const char *key, int *result);
 
 static ssize_t secure_cmp(const void *a, const void *b, size_t size)
 {
@@ -104,7 +105,7 @@ char *retrieve_string(DBM *db, const char *key)
     return retrieved_str;
 }
 
-int retrieve_int(DBM *db, const char *key, int *result)
+static int retrieve_int(DBM *db, const char *key, int *result)
 {
     datum       fetched;
     const_datum key_datum = MAKE_CONST_DATUM(key);

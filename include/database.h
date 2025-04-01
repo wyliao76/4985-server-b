@@ -42,8 +42,6 @@ int store_byte(DBM *db, const void *key, size_t k_size, const void *value, size_
 
 char *retrieve_string(DBM *db, const char *key);
 
-int retrieve_int(DBM *db, const char *key, int *result);
-
 void *retrieve_byte(DBM *db, const void *key, size_t size);
 
 ssize_t verify_user(DBM *db, const void *key, size_t k_size, const void *value, size_t v_size);

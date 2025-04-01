@@ -21,8 +21,6 @@ typedef struct args_t
     char       *envp[ARGC];
 } args_t;
 
-_Noreturn void usage(const char *binary_name, int exit_code, const char *message);
-
 void get_arguments(args_t *args, int argc, char *argv[]);
 
 #endif    // ARGS_H

@@ -10,6 +10,9 @@
 #define MAX_LEN 64
 
 static ssize_t check_len(const uint8_t *len);
+static ssize_t account_create(request_t *request);
+static ssize_t account_login(request_t *request);
+static ssize_t account_logout(request_t *request);
 
 const funcMapping acc_func[] = {
     {ACC_Create,  account_create},
@@ -29,7 +32,7 @@ static ssize_t check_len(const uint8_t *len)
     return 0;
 }
 
-ssize_t account_create(request_t *request)
+static ssize_t account_create(request_t *request)
 {
     DBO         userDB;
     DBO         index_userDB;
@@ -170,7 +173,7 @@ error:
     return -1;
 }
 
-ssize_t account_login(request_t *request)
+static ssize_t account_login(request_t *request)
 {
     DBO         userDB;
     DBO         index_userDB;
@@ -309,7 +312,7 @@ error:
     return -1;
 }
 
-ssize_t account_logout(request_t *request)
+static ssize_t account_logout(request_t *request)
 {
     PRINT_VERBOSE("in account_logout %d \n", request->client->fd);
     PRINT_DEBUG("sender_id %d \n", request->sender_id);

@@ -57,7 +57,7 @@ static int convert(const char *str)
     return (int)sm_fd;
 }
 
-int main(int argc, char *argv[], char *envp[])
+int main(int argc, char *argv[], const char *envp[])
 {
     int retval;
     int server_fd;
