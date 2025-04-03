@@ -402,6 +402,13 @@ static fsm_state_t request_handler(void *args)
         request->code = SERVER_ERROR;
         return ERROR_HANDLER;
     }
+    // idk what state should it be so just to illegal state
+    if(nread == 0)
+    {
+        PRINT_VERBOSE("%s\n", "request_handler getting 0 byte");
+        request->code = OK;
+        return RESPONSE_HANDLER;
+    }
 
     if(nread < (ssize_t)request->len)
     {
@@ -511,6 +518,7 @@ static fsm_state_t process_handler(void *args)
 static fsm_state_t response_handler(void *args)
 {
     request_t *request;
+    const char log[] = "./text.txt";
 
     request = (request_t *)args;
 
@@ -518,8 +526,23 @@ static fsm_state_t response_handler(void *args)
 
     if(request->type != CHT_Send)
     {
+        int fd;
+
         request->response_len = (uint16_t)(HEADER_SIZE + ntohs(request->response_len));
         printf("response_len: %d\n", (request->response_len));
+
+        // testing
+        fd = open(log, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, S_IRUSR | S_IWUSR);
+        if(fd == -1)
+        {
+            perror("open");
+            errno = 0;
+        }
+        else
+        {
+            write_fully(fd, request->response, request->response_len, &request->err);
+            close(fd);
+        }
 
         write_fully(request->client->fd, request->response, request->response_len, &request->err);
     }
@@ -538,8 +561,10 @@ static fsm_state_t response_handler(void *args)
 static fsm_state_t error_handler(void *args)
 {
     request_t *request;
+    const char log[] = "./text.txt";
 
     request = (request_t *)args;
+
     printf("in error_handler %d: %d\n", request->client->fd, (int)request->code);
 
     if(request->type != ACC_Logout)
@@ -552,14 +577,27 @@ static fsm_state_t error_handler(void *args)
     // don't write if connection was gone
     if(errno != ECONNRESET)
     {
+        // testing
+        int fd;
+        fd = open(log, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, S_IRUSR | S_IWUSR);
+        if(fd == -1)
+        {
+            perror("open");
+            errno = 0;
+        }
+        else
+        {
+            write_fully(fd, request->response, request->response_len, &request->err);
+            close(fd);
+        }
         write_fully(request->client->fd, request->response, request->response_len, &request->err);
     }
 
     memset(request->content, 0, CONTENT_SIZE);
     free(request->content);
-    close(request->client->fd);
-    request->client->fd     = -1;
-    request->client->events = 0;
-    *request->session_id    = -1;
+    // close(request->client->fd);
+    // request->client->fd     = -1;
+    // request->client->events = 0;
+    // *request->session_id    = -1;
     return END;
 }

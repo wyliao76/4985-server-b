@@ -275,6 +275,8 @@ static ssize_t account_login(request_t *request)
     }
     printf("account login: user_id: %.*d\n", (int)sizeof(*request->session_id), user_id);
 
+    memset(request->response, 0, RESPONSE_SIZE);
+
     ptr = (char *)request->response;
     // tag
     *ptr++ = ACC_Login_Success;
