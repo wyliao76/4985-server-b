@@ -3,6 +3,7 @@
 #include "chat.h"
 #include "database.h"
 #include "io.h"
+#include "networking.h"
 #include "utils.h"
 #include <arpa/inet.h>
 #include <errno.h>
@@ -384,6 +385,12 @@ static fsm_state_t request_handler(void *args)
 
     request = (request_t *)args;
     printf("in request_handler %d\n", request->client->fd);
+
+    if(setSocketNonBlocking(request->client->fd, &request->err) == -1)
+    {
+        request->code = SERVER_ERROR;
+        return ERROR_HANDLER;
+    }
 
     // Read first 6 bytes from fd
     errno = 0;
