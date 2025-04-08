@@ -4,8 +4,8 @@
 #include "utils.h"
 #include <errno.h>
 #include <fcntl.h>
-#include <p101_c/p101_stdio.h>
-#include <p101_c/p101_stdlib.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 

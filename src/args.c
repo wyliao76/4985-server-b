@@ -2,8 +2,8 @@
 #include "networking.h"
 #include "utils.h"
 #include <getopt.h>
-#include <p101_c/p101_stdio.h>
-#include <p101_c/p101_stdlib.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define UNKNOWN_OPTION_MESSAGE_LEN 22
 
