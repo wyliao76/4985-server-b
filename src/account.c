@@ -44,7 +44,6 @@ static ssize_t account_create(request_t *request)
     char       *ptr;
     const char *username;
     const char *password;
-    int         user_id;
 
     // server default to 0
     uint16_t sender_id = SERVER_ID;
@@ -132,16 +131,6 @@ static ssize_t account_create(request_t *request)
         goto error;
     }
 
-    // for checking
-    user_id = *(int *)retrieve_byte(index_userDB.db, username, user_len);
-    if(!user_id)
-    {
-        printf("account account retrieve_int error\n");
-        request->code = SERVER_ERROR;
-        goto error;
-    }
-    printf("account login: user_id: %d\n", user_id);
-
     ptr = (char *)request->response;
     // tag
     *ptr++ = SYS_Success;
@@ -185,7 +174,7 @@ static ssize_t account_login(request_t *request)
     char       *ptr;
     const char *username;
     const char *password;
-    int         user_id;
+    int        *user_id;
     ssize_t     result;
 
     // server default to 0
@@ -266,14 +255,14 @@ static ssize_t account_login(request_t *request)
         goto error;
     }
 
-    user_id = *(int *)retrieve_byte(index_userDB.db, username, user_len);
+    user_id = (int *)retrieve_byte(index_userDB.db, username, user_len);
     if(!user_id)
     {
         printf("account login retrieve_int error\n");
         request->code = SERVER_ERROR;
         goto error;
     }
-    printf("account login: user_id: %.*d\n", (int)sizeof(*request->session_id), user_id);
+    printf("account login: user_id: %.*d\n", (int)sizeof(*request->session_id), *user_id);
 
     memset(request->response, 0, RESPONSE_SIZE);
 
@@ -297,13 +286,14 @@ static ssize_t account_login(request_t *request)
     *ptr++ = INTEGER;
     *ptr++ = sizeof(uint16_t);
 
-    user_id = htons((uint16_t)user_id);
-    memcpy(ptr, &user_id, sizeof(user_id));
+    *user_id = htons(*(uint16_t *)user_id);
+    memcpy(ptr, user_id, sizeof(*user_id));
 
-    *request->session_id = ntohs((uint16_t)user_id);
+    *request->session_id = ntohs(*(uint16_t *)user_id);
 
     printf("session_id %d\n", *request->session_id);
 
+    free(user_id);
     dbm_close(userDB.db);
     dbm_close(index_userDB.db);
     return 0;
