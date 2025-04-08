@@ -110,6 +110,8 @@ typedef struct funcMapping
     ssize_t (*func)(request_t *request);
 } funcMapping;
 
+extern const funcMapping acc_func[];
+
 typedef enum
 {
     MAN_Error      = 0x01,
