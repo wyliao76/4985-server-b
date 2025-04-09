@@ -4,7 +4,6 @@
 #include "networking.h"
 #include "utils.h"
 #include <errno.h>
-#include <limits.h>
 #include <memory.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -17,45 +16,6 @@
 #define BACKLOG 5
 #define PORT "8081"
 #define SM_PORT "8082"
-#define BASE_TEN 10
-
-static int convert(const char *str)
-{
-    char *endptr;
-    long  sm_fd;
-
-    errno = 0;
-    if(!str)
-    {
-        return -1;
-    }
-
-    sm_fd = strtol(str, &endptr, BASE_TEN);
-
-    // Check for conversion errors
-    if((errno == ERANGE && (sm_fd == INT_MAX || sm_fd == INT_MIN)) || (errno != 0 && sm_fd > 2))
-    {
-        fprintf(stderr, "Error during conversion: %s\n", strerror(errno));
-        return -1;
-    }
-
-    // Check if the entire string was converted
-    if(endptr == str)
-    {
-        fprintf(stderr, "No digits were found in the input.\n");
-        return -1;
-    }
-
-    // Check for leftover characters in the string
-    if(*endptr != '\0')
-    {
-        fprintf(stderr, "Extra characters after the number: %s\n", endptr);
-        return -1;
-    }
-
-    printf("sm_fd: %ld\n", sm_fd);
-    return (int)sm_fd;
-}
 
 int main(int argc, char *argv[], const char *envp[])
 {
