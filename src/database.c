@@ -1,12 +1,32 @@
-#include "../include/database.h"
+#include "database.h"
+#include "args.h"
+#include "messaging.h"
+#include "utils.h"
 #include <errno.h>
 #include <fcntl.h>
-#include <p101_c/p101_stdio.h>
-#include <p101_c/p101_stdlib.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 
 #pragma GCC diagnostic ignored "-Waggregate-return"
+
+static ssize_t secure_cmp(const void *a, const void *b, size_t size);
+static int     retrieve_int(DBM *db, const char *key, int *result);
+
+static ssize_t secure_cmp(const void *a, const void *b, size_t size)
+{
+    const uint8_t *x    = (const uint8_t *)a;
+    const uint8_t *y    = (const uint8_t *)b;
+    uint8_t        diff = 0;
+
+    for(size_t i = 0; i < size; i++)
+    {
+        diff |= x[i] ^ y[i];    // XOR accumulates differences
+    }
+
+    return diff;    // 0 means equal, nonzero means different
+}
 
 ssize_t database_open(DBO *dbo, int *err)
 {
@@ -85,7 +105,7 @@ char *retrieve_string(DBM *db, const char *key)
     return retrieved_str;
 }
 
-int retrieve_int(DBM *db, const char *key, int *result)
+static int retrieve_int(DBM *db, const char *key, int *result)
 {
     datum       fetched;
     const_datum key_datum = MAKE_CONST_DATUM(key);
@@ -106,7 +126,7 @@ void *retrieve_byte(DBM *db, const void *key, size_t size)
 {
     const_datum key_datum;
     datum       result;
-    char       *retrieved_str;
+    void       *retrieved;
 
     key_datum = MAKE_CONST_DATUM_BYTE(key, size);
 
@@ -117,19 +137,53 @@ void *retrieve_byte(DBM *db, const void *key, size_t size)
         return NULL;
     }
 
-    retrieved_str = (char *)malloc(TO_SIZE_T(result.dsize));
+    retrieved = malloc(TO_SIZE_T(result.dsize));
 
-    if(!retrieved_str)
+    if(!retrieved)
     {
         return NULL;
     }
 
-    memcpy(retrieved_str, result.dptr, TO_SIZE_T(result.dsize));
+    printf("result.dsize: %zu\n", TO_SIZE_T(result.dsize));
 
-    return retrieved_str;
+    memcpy(retrieved, result.dptr, TO_SIZE_T(result.dsize));
+
+    return retrieved;
 }
 
-ssize_t init_pk(DBO *dbo, const char *pk_name, int *pk)
+ssize_t verify_user(DBM *db, const void *key, size_t k_size, const void *value, size_t v_size)
+{
+    const_datum key_datum;
+    datum       result;
+    ssize_t     match;
+
+    key_datum = MAKE_CONST_DATUM_BYTE(key, k_size);
+
+    result = dbm_fetch(db, *(datum *)&key_datum);
+
+    if(result.dptr == NULL)
+    {
+        return -1;
+    }
+
+    printf("result.dsize: %zu\n", TO_SIZE_T(result.dsize));
+
+    if(TO_SIZE_T(result.dsize) != v_size)
+    {
+        return -2;
+    }
+
+    match = secure_cmp(result.dptr, value, TO_SIZE_T(result.dsize));
+
+    printf("match: %d\n", (int)match);
+    if(match != 0)
+    {
+        return -3;
+    }
+    return 0;
+}
+
+ssize_t init_pk(DBO *dbo, const char *pk_name)
 {
     int err;
 
@@ -139,17 +193,15 @@ ssize_t init_pk(DBO *dbo, const char *pk_name, int *pk)
         return -1;
     }
 
-    if(retrieve_int(dbo->db, pk_name, pk) < 0)
+    if(retrieve_int(dbo->db, pk_name, &user_index) < 0)
     {
-        // *pk = 0;
-        *pk = 2;
-        if(store_int(dbo->db, pk_name, *pk) != 0)
+        if(store_int(dbo->db, pk_name, user_index) != 0)
         {
             return -1;
         }
     }
 
-    printf("Retrieved user_count: %d\n", *pk);
+    printf("Retrieved user_count: %d\n", user_index);
 
     dbm_close(dbo->db);
     return 0;

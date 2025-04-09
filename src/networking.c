@@ -1,9 +1,9 @@
 #include "networking.h"
 #include <errno.h>
 #include <fcntl.h>
-#include <p101_c/p101_stdio.h>
-#include <p101_c/p101_stdlib.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -131,11 +131,11 @@ static int setup_tcp_server(const struct sockaddr_storage *addr, socklen_t addr_
         goto done;
     }
 
-    result = setSocketNonBlocking(fd, err);
-    if(result == -1)
-    {
-        goto done;
-    }
+    // result = setSocketNonBlocking(fd, err);
+    // if(result == -1)
+    // {
+    //     goto done;
+    // }
 
     result = setSockReuse(fd, err);
 

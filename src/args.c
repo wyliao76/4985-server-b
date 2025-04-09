@@ -1,12 +1,15 @@
 #include "args.h"
 #include "networking.h"
+#include "utils.h"
 #include <getopt.h>
-#include <p101_c/p101_stdio.h>
-#include <p101_c/p101_stdlib.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define UNKNOWN_OPTION_MESSAGE_LEN 22
 
-_Noreturn void usage(const char *binary_name, int exit_code, const char *message)
+static _Noreturn void usage(const char *binary_name, int exit_code, const char *message);
+
+static _Noreturn void usage(const char *binary_name, int exit_code, const char *message)
 {
     if(message)
     {
@@ -20,6 +23,8 @@ _Noreturn void usage(const char *binary_name, int exit_code, const char *message
     fputs("  -p <port>,    --port <port>        The server port to use.\n", stderr);
     fputs("  -A <sm address>, --sm address <sm address>  The address of server manager.\n", stderr);
     fputs("  -P <sm port>,    --sm port <sm port>        The server manager port.\n", stderr);
+    fputs("  -v <verbose>,    --verbose <verbose>        To show more logs.\n", stderr);
+    fputs("  -d <debug>,    --debug <debug>        To show detail logs.\n", stderr);
     exit(exit_code);
 }
 
@@ -32,11 +37,13 @@ void get_arguments(args_t *args, int argc, char *argv[])
         {"port",       required_argument, NULL, 'p'},
         {"sm address", required_argument, NULL, 'A'},
         {"sm_port",    required_argument, NULL, 'P'},
+        {"verbose",    optional_argument, NULL, 'v'},
+        {"debug",      optional_argument, NULL, 'd'},
         {"help",       no_argument,       NULL, 'h'},
         {NULL,         0,                 NULL, 0  }
     };
 
-    while((opt = getopt_long(argc, argv, "ha:p:A:P:", long_options, NULL)) != -1)
+    while((opt = getopt_long(argc, argv, "ha:p:A:P:vd", long_options, NULL)) != -1)
     {
         switch(opt)
         {
@@ -57,6 +64,13 @@ void get_arguments(args_t *args, int argc, char *argv[])
                 {
                     usage(argv[0], EXIT_FAILURE, "Port must be between 1 and 65535");
                 }
+                break;
+            case 'v':
+                verbose = 1;
+                printf("verbose getopt\n");
+                break;
+            case 'd':
+                verbose = 2;
                 break;
             case 'h':
                 usage(argv[0], EXIT_SUCCESS, NULL);

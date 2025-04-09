@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "starter.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +11,9 @@ _Pragma("clang diagnostic ignored \"-Wdisabled-macro-expansion\"")
 
 #define SIG_BUF 50
 
-    volatile sig_atomic_t running = 1;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+    int verbose                     = 0;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+volatile sig_atomic_t running       = 1;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+volatile sig_atomic_t server_switch = 3;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 /* Calls `free()` and nullifies the ptr. */
 void nfree(void **ptr)
@@ -29,15 +32,24 @@ static void handle_signal(int sig)
     snprintf(message, sizeof(message), "Caught signal: %d (%s)\n", sig, strsignal(sig));
     write(STDOUT_FILENO, message, strlen(message));
 
+    if(sig == SIGCHLD)
+    {
+        snprintf(message, sizeof(message), "\n%s\n", "Getting SIGCHLD...");
+    }
     if(sig == SIGINT)
     {
         running = 0;
         snprintf(message, sizeof(message), "\n%s\n", "Shutting down gracefully...");
     }
+    if(sig == SIGTSTP)
+    {
+        // switch between 0 and 1
+        server_switch = (server_switch + 1) & 0x1;
+    }
     write(STDOUT_FILENO, message, strlen(message));
 }
 
-void setup_signal(void)
+void setup_signal(int handle_sigtstp)
 {
     struct sigaction sa;
 
@@ -48,7 +60,22 @@ void setup_signal(void)
     // Register signal handler
     if(sigaction(SIGINT, &sa, NULL) == -1)
     {
-        perror("sigaction");
+        perror("sigaction SIGINT");
         exit(EXIT_FAILURE);
+    }
+
+    if(sigaction(SIGCHLD, &sa, NULL) == -1)
+    {
+        perror("sigaction SIGCHLD");
+        exit(EXIT_FAILURE);
+    }
+
+    if(handle_sigtstp)
+    {
+        if(sigaction(SIGTSTP, &sa, NULL) == -1)
+        {
+            perror("sigaction SIGTSTP");
+            exit(EXIT_FAILURE);
+        }
     }
 }

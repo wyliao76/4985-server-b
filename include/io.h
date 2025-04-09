@@ -7,7 +7,7 @@
 
 ssize_t read_fully(int fd, char *buf, size_t size, int *err);
 
-ssize_t write_fully(int fd, void *buf, ssize_t size, int *err);
+ssize_t write_fully(int fd, const void *buf, ssize_t size, int *err);
 
 ssize_t copy(int from, int to, int *err);
 
