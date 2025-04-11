@@ -16,5 +16,6 @@ extern volatile sig_atomic_t server_switch;    // NOLINT(cppcoreguidelines-avoid
 void nfree(void **ptr);
 
 void setup_signal(int handle_sigtstp);
+int  convert(const char *str);
 
 #endif

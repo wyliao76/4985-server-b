@@ -1,5 +1,7 @@
 #include "utils.h"
 #include "starter.h"
+#include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +12,7 @@ _Pragma("clang diagnostic ignored \"-Wdisabled-macro-expansion\"")
 #endif
 
 #define SIG_BUF 50
+#define BASE_TEN 10
 
     int verbose                     = 0;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 volatile sig_atomic_t running       = 1;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
@@ -78,4 +81,42 @@ void setup_signal(int handle_sigtstp)
             exit(EXIT_FAILURE);
         }
     }
+}
+
+int convert(const char *str)
+{
+    char *endptr;
+    long  sm_fd;
+
+    errno = 0;
+    if(!str)
+    {
+        return -1;
+    }
+
+    sm_fd = strtol(str, &endptr, BASE_TEN);
+
+    // Check for conversion errors
+    if((errno == ERANGE && (sm_fd == INT_MAX || sm_fd == INT_MIN)) || (errno != 0 && sm_fd > 2))
+    {
+        fprintf(stderr, "Error during conversion: %s\n", strerror(errno));
+        return -1;
+    }
+
+    // Check if the entire string was converted
+    if(endptr == str)
+    {
+        fprintf(stderr, "No digits were found in the input.\n");
+        return -1;
+    }
+
+    // Check for leftover characters in the string
+    if(*endptr != '\0')
+    {
+        fprintf(stderr, "Extra characters after the number: %s\n", endptr);
+        return -1;
+    }
+
+    printf("sm_fd: %ld\n", sm_fd);
+    return (int)sm_fd;
 }
