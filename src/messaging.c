@@ -17,7 +17,7 @@
 #define MAX_LEN 64
 #define TIMEOUT 3000    // 3s
 // testing
-#define MSG_COUNT 0x00000064
+#define MSG_COUNT 0x00000000
 uint16_t user_count = 0;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 uint32_t msg_count  = MSG_COUNT;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 int      user_index = 0;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
