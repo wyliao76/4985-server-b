@@ -98,3 +98,10 @@ The files.txt file contains:
 <executable> <source files> <header files> <libraries>
 
 When you need to add/removes files to/from the project you must rerun the 4 steps above. 
+
+## launch
+# server starter
+```
+./build/starter -P 9000 -p 8000 -d
+./build/sm_test -d
+```
