@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
         // to accept starter
         if(fds[0].revents & POLLIN)
         {
-            client_fd = accept(server_fd, NULL, 0);
+            client_fd = accept(server_fd, NULL, NULL);
             printf("starter fd: %d\n", client_fd);
             if(client_fd < 0)
             {
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
         // accept clients
         if(fds[1].revents & POLLIN)
         {
-            client_fd = accept(server_fd2, NULL, 0);
+            client_fd = accept(server_fd2, NULL, NULL);
             printf("client_fd: %d\n", client_fd);
             if(client_fd < 0)
             {

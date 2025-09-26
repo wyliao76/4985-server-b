@@ -638,7 +638,7 @@ void event_loop(int server_fd, int sm_fd, int *err)
         // Check for new connection
         if(fds[0].revents & POLLIN)
         {
-            client_fd = accept(server_fd, NULL, 0);
+            client_fd = accept(server_fd, NULL, NULL);
             if(client_fd < 0)
             {
                 if(errno == EINTR)
